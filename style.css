@@ -10,3 +10,7 @@ svg{width:24px;height:24px;flex:none}.topright .icon-button{width:44px;height:44
 @media(max-height:650px) and (min-width:650px){#menu{top:17%;max-height:75dvh;overflow-y:auto}h1{font-size:70px;margin:0 0 18px}.intro{font-size:13px;margin:12px 0 18px}.mode{margin:10px 0 14px}.tutorial{font-size:11px;padding-top:10px}.primary{min-height:48px;padding:12px 20px}.racepanel{top:88px}#touch{bottom:16px}.modalcard h2{font-size:38px;margin-bottom:22px}}
 
 #menu{overflow-x:hidden}
+
+/* HUD alignment */
+.racepanel{left:4%;right:auto;text-align:left}
+#touch .speedpanel>span{flex-basis:100%;margin-top:6px;text-align:center}
