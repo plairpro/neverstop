@@ -19,3 +19,21 @@ svg{width:24px;height:24px;flex:none}.topright .icon-button{width:44px;height:44
 .lens{backdrop-filter:blur(13px);-webkit-backdrop-filter:blur(13px)}
 .lens-top{height:35%;mask-image:linear-gradient(#000 0%,#0009 45%,transparent);-webkit-mask-image:linear-gradient(#000 0%,#0009 45%,transparent)}
 .lens-bottom{height:34%;mask-image:linear-gradient(transparent,#0009 55%,#000);-webkit-mask-image:linear-gradient(transparent,#0009 55%,#000)}
+
+/* Vehicle choice */
+.car-select{border:0;padding:0;margin:0 0 22px;display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:410px}
+.car-select legend{font-size:12px;margin-bottom:12px;color:#eee4ceaa}
+.car-option{position:relative;cursor:pointer;border:1px solid #eee4ce44;border-radius:8px;padding:14px 12px;background:#211c162b;transition:background .15s,border-color .15s;min-width:0}
+.car-option:has(input:checked){background:#ef7b3726;border-color:#ef7b37}
+.car-option:has(input:focus-visible){outline:2px solid #eee4ce;outline-offset:3px}
+.car-option input{position:absolute;right:10px;top:13px;accent-color:var(--orange);width:15px;height:15px;margin:0}
+.car-name{display:block;font-size:15px;font-weight:700;padding-right:18px;margin-bottom:10px}
+.car-stats{display:block;font-size:11px;line-height:1.8;color:#eee4cebb}
+#menu{top:12%;max-height:calc(88dvh - 48px);overflow-y:auto;padding:4px 3px 10px}
+#menu h1{font-size:clamp(70px,8vw,112px);margin-bottom:20px}
+#menu .intro{margin-bottom:20px}
+#menu .mode{margin-bottom:18px}
+#menu .tutorial{padding-top:12px}
+@media(max-width:650px){#menu{top:12%;max-height:calc(88dvh - 42px)}#menu h1{font-size:clamp(64px,19vw,92px)}.car-select{gap:8px;margin-bottom:16px}.car-option{padding:12px 10px}.car-stats{font-size:10px}.car-name{font-size:14px}.car-select legend{margin-bottom:8px}#menu .intro{font-size:12px;margin-bottom:16px}#menu .tutorial{font-size:11px}}
+
+#menu{touch-action:pan-y}
