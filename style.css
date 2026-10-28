@@ -37,3 +37,5 @@ svg{width:24px;height:24px;flex:none}.topright .icon-button{width:44px;height:44
 @media(max-width:650px){#menu{top:12%;max-height:calc(88dvh - 42px)}#menu h1{font-size:clamp(64px,19vw,92px)}.car-select{gap:8px;margin-bottom:16px}.car-option{padding:12px 10px}.car-stats{font-size:10px}.car-name{font-size:14px}.car-select legend{margin-bottom:8px}#menu .intro{font-size:12px;margin-bottom:16px}#menu .tutorial{font-size:11px}}
 
 #menu{touch-action:pan-y}
+
+#touch .speedpanel #boost{color:#a5edf4;font-size:11px;letter-spacing:.4px;margin-top:6px}.car-select{margin-bottom:16px}#menu .mode{font-size:10px}#menu .tutorial p{margin-bottom:6px}
