@@ -14,3 +14,8 @@ svg{width:24px;height:24px;flex:none}.topright .icon-button{width:44px;height:44
 /* HUD alignment */
 .racepanel{left:4%;right:auto;text-align:left}
 #touch .speedpanel>span{flex-basis:100%;margin-top:6px;text-align:center}
+
+/* Strong miniature lens, with a clear driving band */
+.lens{backdrop-filter:blur(13px);-webkit-backdrop-filter:blur(13px)}
+.lens-top{height:35%;mask-image:linear-gradient(#000 0%,#0009 45%,transparent);-webkit-mask-image:linear-gradient(#000 0%,#0009 45%,transparent)}
+.lens-bottom{height:34%;mask-image:linear-gradient(transparent,#0009 55%,#000);-webkit-mask-image:linear-gradient(transparent,#0009 55%,#000)}
