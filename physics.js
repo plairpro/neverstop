@@ -24,7 +24,7 @@ export function step(c,dt,pits,input=0){
  const rearSlip=Math.atan2(lateral-c.yawRate*1.25,Math.max(3,Math.abs(forward)));
  const frontForce=-Math.tanh(frontSlip*6.5)*c.spec.frontGrip*grip;
  const rearForce=-Math.tanh(rearSlip*5.8)*c.spec.rearGrip*grip;
- c.yawRate+=((frontForce*1.35-rearForce*1.25)/3.1-c.yawRate*c.spec.yawDamping-c.yaw*.85)*dt;
+ c.yawRate+=((frontForce*1.35-rearForce*1.25)/3.1-c.yawRate*c.spec.yawDamping)*dt;
  c.yawRate=clamp(c.yawRate,-1.1,1.1);
  c.yaw+=c.yawRate*dt;
  if(Math.abs(c.yaw)>1.12){c.yaw=clamp(c.yaw,-1.12,1.12);if(c.yawRate*c.yaw>0)c.yawRate*=Math.exp(-dt*12);}
