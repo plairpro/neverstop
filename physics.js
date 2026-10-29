@@ -1,4 +1,4 @@
-import {obstacleDepth,terrainHeight} from './course.js?v=6';
+import {obstacleDepth,terrainHeight} from './course.js?v=7';
 export const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 export const CAR_TYPES=Object.freeze({
  sedan:Object.freeze({name:'Легковая',maxSpeed:96,capacity:80,drive:12.53,frontGrip:9.5,rearGrip:6.7,yawDamping:1.45}),
@@ -40,4 +40,4 @@ export function step(c,dt,pits,input=0){
  if(c.sink>=3.8){c.dead=true;c.sink=3.8;}c.slow=deep;
 }
 export function collide(a,b){if(a.dead||b.dead||a.finished||b.finished)return false;const dx=b.x-a.x,dz=b.z-a.z;const d=Math.hypot(dx,dz);if(d>=2.7)return false;const nx=d>.001?dx/d:1,nz=d>.001?dz/d:0;const overlap=2.7-d;a.x-=nx*overlap*.5;a.z-=nz*overlap*.5;b.x+=nx*overlap*.5;b.z+=nz*overlap*.5;const rel=(b.vx-a.vx)*nx+(b.vz-a.vz)*nz;if(rel<0){const impulse=-rel*.78+1.2;a.vx-=nx*impulse;a.vz-=nz*impulse;b.vx+=nx*impulse;b.vz+=nz*impulse;const twist=clamp(nz*nx*impulse*.12,-.55,.55);a.yawRate=clamp(a.yawRate-twist,-1.1,1.1);b.yawRate=clamp(b.yawRate+twist,-1.1,1.1);a.hits++;b.hits++;return impulse>2;}return false;}
-export function pickup(c,f){if(c.dead||c.finished||!f.active||Math.hypot(c.x-f.x,c.z-f.z)>2.1)return false;f.active=false;if(f.kind==='nitro'){c.boost=4;}else{c.fuel=Math.min(c.spec.capacity,c.fuel+33);c.pickups++;}return true;}
+export function pickup(c,f){if(c.dead||c.finished||!f.active||Math.hypot(c.x-f.x,c.z-f.z)>2.1)return false;f.active=false;if(f.kind==='nitro'){c.boost=4;}else{c.fuel=Math.min(c.spec.capacity,c.fuel+5);c.pickups++;}return true;}

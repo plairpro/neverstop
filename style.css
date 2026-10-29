@@ -39,3 +39,6 @@ svg{width:24px;height:24px;flex:none}.topright .icon-button{width:44px;height:44
 #menu{touch-action:pan-y}
 
 #touch .speedpanel #boost{color:#a5edf4;font-size:11px;letter-spacing:.4px;margin-top:6px}.car-select{margin-bottom:16px}#menu .mode{font-size:10px}#menu .tutorial p{margin-bottom:6px}
+
+/* The WebGL lens already blurs the scene; avoid a second full-screen compositor pass. */
+body.gpu .lens{display:none}

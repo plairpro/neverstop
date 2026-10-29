@@ -10,3 +10,4 @@ export function createCourse(seed=517){let state=seed>>>0;const rand=()=>{state=
  return {obstacles,supplies};
 }
 export function finishCrossings(cars,previous,time,dt,count){const crossings=[];for(let i=0;i<cars.length;i++){const c=cars[i];if(!c.dead&&!c.finished&&c.z<=-RACE_LENGTH){const fraction=Math.max(0,Math.min(1,(previous[i]+RACE_LENGTH)/(previous[i]-c.z)));crossings.push({c,t:time-dt+fraction*dt});}}crossings.sort((a,b)=>a.t-b.t||a.c.id-b.c.id);for(const {c,t} of crossings){c.finished=true;c.finishPlace=++count;c.finishTime=t;c.z=-RACE_LENGTH;c.vx=c.vz=0;c.boost=0;}return count;}
+export function raceOrder(cars){return [...cars].sort((a,b)=>{if(a.finished||b.finished){if(a.finished&&b.finished)return a.finishPlace-b.finishPlace;return a.finished?-1:1;}if(a.dead!==b.dead)return a.dead?1:-1;return a.z-b.z||a.id-b.id;});}
