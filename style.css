@@ -44,3 +44,5 @@ svg{width:24px;height:24px;flex:none}.topright .icon-button{width:44px;height:44
 body.gpu .lens{display:none}
 
 #playerTag{position:fixed;transform:translate(-50%,-100%);font-size:9px;letter-spacing:1.5px;color:#fff3d7;text-shadow:0 1px 4px #211c16;pointer-events:none;z-index:2}#playerTag::after{content:'';display:block;width:1px;height:9px;background:#fff3d799;margin:4px auto 0}
+
+#playerTag{width:6px;height:6px;border-radius:50%;background:#fff;box-shadow:0 1px 5px #211c1644;transform:translate(-50%,-50%)}#playerTag::after{display:none}

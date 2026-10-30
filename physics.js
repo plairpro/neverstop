@@ -1,8 +1,8 @@
 import {obstacleDepth,terrainHeight} from './course.js?v=7';
 export const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 export const CAR_TYPES=Object.freeze({
- sedan:Object.freeze({name:'Легковая',maxSpeed:96,capacity:80,drive:12.53,frontGrip:9.5,rearGrip:6.7,yawDamping:1.45}),
- pickup:Object.freeze({name:'Пикап',maxSpeed:78,capacity:120,drive:10.18,frontGrip:10.5,rearGrip:9.8,yawDamping:2.15})
+ sedan:Object.freeze({name:'Легковая',maxSpeed:96,capacity:80,drive:12.53,frontGrip:9.5,rearGrip:6.7,yawDamping:1.45,poolDrag:.82,duneDrag:1}),
+ pickup:Object.freeze({name:'Пикап',maxSpeed:78,capacity:120,drive:10.18,frontGrip:10.5,rearGrip:9.8,yawDamping:2.15,poolDrag:1,duneDrag:.8})
 });
 export function vehicle(id,x,z,type='sedan'){const spec=CAR_TYPES[type]||CAR_TYPES.sedan;return{id,x,z,type:CAR_TYPES[type]?type:'sedan',spec,vx:0,vz:-16,yaw:0,fuel:spec.capacity,sink:0,dead:false,steer:0,yawRate:0,slip:0,lateralAccel:0,distance:0,hits:0,pickups:0,slow:0,boost:0,groundHeight:0,terrainPitch:0,finished:false,finishPlace:0};}
 export function step(c,dt,pits,input=0){
@@ -12,7 +12,7 @@ export function step(c,dt,pits,input=0){
  c.fuel=Math.max(0,c.fuel-dt*1.6);
  c.steer+=(clamp(input,-1,1)-c.steer)*(1-Math.exp(-dt*5.5));
  let deep=0,resistance=0,height=0,frontHeight=0,rearHeight=0;
- for(const p of pits){const depth=obstacleDepth(p,c.x,c.z);if(!depth)continue;if(p.kind==='pool'){deep=Math.max(deep,depth);resistance=Math.max(resistance,depth*4.2);}else{resistance=Math.max(resistance,depth*(p.kind==='dune'?1.1:1.8));height=Math.max(height,terrainHeight(p,c.x,c.z));const fx=Math.sin(c.yaw)*1.2,fz=-Math.cos(c.yaw)*1.2;frontHeight=Math.max(frontHeight,terrainHeight(p,c.x+fx,c.z+fz));rearHeight=Math.max(rearHeight,terrainHeight(p,c.x-fx,c.z-fz));}}
+ for(const p of pits){const depth=obstacleDepth(p,c.x,c.z);if(!depth)continue;if(p.kind==='pool'){deep=Math.max(deep,depth);resistance=Math.max(resistance,depth*4.2*c.spec.poolDrag);}else{resistance=Math.max(resistance,depth*(p.kind==='dune'?1.1*c.spec.duneDrag:1.8));height=Math.max(height,terrainHeight(p,c.x,c.z));const fx=Math.sin(c.yaw)*1.2,fz=-Math.cos(c.yaw)*1.2;frontHeight=Math.max(frontHeight,terrainHeight(p,c.x+fx,c.z+fz));rearHeight=Math.max(rearHeight,terrainHeight(p,c.x-fx,c.z-fz));}}
  c.groundHeight+=(height-c.groundHeight)*(1-Math.exp(-dt*12));c.terrainPitch+=(Math.atan2(frontHeight-rearHeight,2.4)-c.terrainPitch)*(1-Math.exp(-dt*8));
  const shoulder=clamp((Math.abs(c.x)-21)/9,0,1);
  const fx=Math.sin(c.yaw),fz=-Math.cos(c.yaw),rx=Math.cos(c.yaw),rz=Math.sin(c.yaw);
@@ -41,3 +41,11 @@ export function step(c,dt,pits,input=0){
 }
 export function collide(a,b){if(a.dead||b.dead||a.finished||b.finished)return false;const dx=b.x-a.x,dz=b.z-a.z;const d=Math.hypot(dx,dz);if(d>=2.7)return false;const nx=d>.001?dx/d:1,nz=d>.001?dz/d:0;const overlap=2.7-d;a.x-=nx*overlap*.5;a.z-=nz*overlap*.5;b.x+=nx*overlap*.5;b.z+=nz*overlap*.5;const rel=(b.vx-a.vx)*nx+(b.vz-a.vz)*nz;if(rel<0){const impulse=-rel*.78+1.2;a.vx-=nx*impulse;a.vz-=nz*impulse;b.vx+=nx*impulse;b.vz+=nz*impulse;const twist=clamp(nz*nx*impulse*.12,-.55,.55);a.yawRate=clamp(a.yawRate-twist,-1.1,1.1);b.yawRate=clamp(b.yawRate+twist,-1.1,1.1);a.hits++;b.hits++;return impulse>2;}return false;}
 export function pickup(c,f){if(c.dead||c.finished||!f.active||Math.hypot(c.x-f.x,c.z-f.z)>2.1)return false;f.active=false;if(f.kind==='nitro'){c.boost=4;}else{c.fuel=Math.min(c.spec.capacity,c.fuel+5);c.pickups++;}return true;}
+// Two overlapping contact circles approximate a car body against an oriented solid footprint.
+export function collideSolid(c,s){if(c.dead||c.finished)return 0;const sx=s.object?s.object.position.x:s.x,sz=s.object?s.object.position.z:s.z;
+if(Math.abs(c.x-sx)>s.hx+s.hz+4||Math.abs(c.z-sz)>s.hx+s.hz+4)return 0;
+const angle=s.object?-s.object.rotation.y:s.angle||0,co=Math.cos(angle),si=Math.sin(angle);let impact=0;
+for(const offset of[-1,1]){const px=c.x+Math.sin(c.yaw)*offset,pz=c.z-Math.cos(c.yaw)*offset,dx=px-sx,dz=pz-sz;const x=dx*co+dz*si,z=-dx*si+dz*co;const qx=clamp(x,-s.hx,s.hx),qz=clamp(z,-s.hz,s.hz);let nx=x-qx,nz=z-qz,d=Math.hypot(nx,nz),penetration=0;const radius=1.02;
+if(d>=radius)continue;if(d>.00001){nx/=d;nz/=d;penetration=radius-d;}else{const ex=s.hx-Math.abs(x),ez=s.hz-Math.abs(z);if(ex<ez){nx=x>=0?1:-1;nz=0;penetration=radius+ex;}else{nx=0;nz=z>=0?1:-1;penetration=radius+ez;}}
+const wx=nx*co-nz*si,wz=nx*si+nz*co;c.x+=wx*(penetration+.001);c.z+=wz*(penetration+.001);const speed=c.vx*wx+c.vz*wz;if(speed<0){impact=Math.max(impact,-speed);c.vx-=wx*speed*1.12;c.vz-=wz*speed*1.12;c.vx*=.88;c.vz*=.88;c.yawRate*=.55;}}
+return impact;}
