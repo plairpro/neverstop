@@ -4,7 +4,7 @@ import {makeRoute} from './route.js?v=13';
 import {batchStatic} from './render-utils.js?v=7';
 import {RACE_LENGTH,roadCenter,ROAD_HALF,createCourse,contour,finishCrossings,raceOrder} from './course.js?v=13';
 import * as T from './three.js';
-import {SoftwareRenderer} from './software.js?v=13';
+import {SoftwareRenderer} from './software.js?v=14';
 import{vehicle,step,collide,collideSolid,pickup,clamp}from './physics.js?v=13';
 const $=id=>document.getElementById(id);let renderer;try{renderer=new T.WebGLRenderer({canvas:$('world'),antialias:false,powerPreference:'high-performance'});}catch(e){renderer=new SoftwareRenderer($('world'));document.querySelector('.tag').textContent='ОБЛЕГЧЁННАЯ ГРАФИКА';}
 renderer.setPixelRatio(Math.min(devicePixelRatio,1));renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFShadowMap;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.08;
