@@ -3,7 +3,7 @@ import {batchStatic} from './render-utils.js?v=7';
 import {RACE_LENGTH,createCourse,contour,finishCrossings,raceOrder} from './course.js?v=7';
 import * as T from './three.js';
 import {SoftwareRenderer} from './software.js?v=9';
-import{vehicle,step,collide,collideSolid,pickup,clamp}from './physics.js?v=9';
+import{vehicle,step,collide,collideSolid,pickup,clamp}from './physics.js?v=11';
 const $=id=>document.getElementById(id);let renderer;try{renderer=new T.WebGLRenderer({canvas:$('world'),antialias:true,powerPreference:'high-performance'});}catch(e){renderer=new SoftwareRenderer($('world'));document.querySelector('.tag').textContent='ОБЛЕГЧЁННАЯ ГРАФИКА';}
 renderer.setPixelRatio(Math.min(devicePixelRatio,1.25));renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.08;
 document.body.classList.toggle('gpu',!!renderer.isWebGLRenderer);
@@ -30,14 +30,15 @@ function makeCar(color,variant=0){
  // Long hood, separate front fenders and a gently sloping bonnet.
  const hood=panel(body,1.67,.21,1.57,0,1.01,-1.25,paint);hood.rotation.x=-.045;
  for(const x of[-.94,.94]){panel(body,.24,.36,1.66,x,.96,-1.23,paint,.04);panel(body,.25,.33,1.43,x,.92,1.35,paint,.04);panel(body,.12,.14,3.65,x,.63,.05,dusty,.025);}
- const pickup=variant===2,roofFront=-.33,roofRear=pickup?.56:.93,back=pickup?.95:1.38;
+ const pickup=variant===2,roofFront=pickup?-.52:-.38,roofRear=pickup?.18:.57,back=pickup?.38:1.12;
  panel(body,1.57,.12,roofRear-roofFront+.1,0,1.65,(roofFront+roofRear)/2,paint,.035);
  glazing(body,[[-.88,1.03,-.91],[.88,1.03,-.91],[.73,1.6,roofFront],[-.73,1.6,roofFront]],window);
  glazing(body,[[.86,1.04,back],[-.86,1.04,back],[-.73,1.6,roofRear],[.73,1.6,roofRear]],window);
  for(const side of[-1,1]){
   glazing(body,[[side*.89,1.06,-.85],[side*.89,1.06,back-.06],[side*.74,1.59,roofRear],[side*.74,1.59,roofFront]],window);
   strut(body,[side*.9,1.01,-.94],[side*.76,1.66,roofFront],.045,paint);strut(body,[side*.88,1.01,back],[side*.76,1.66,roofRear],.055,paint);
-  strut(body,[side*.89,1.05,.35],[side*.75,1.63,.35],.035,dark);
+  strut(body,[side*.89,1.05,pickup?.02:.12],[side*.75,1.63,pickup?.02:.12],.035,dark);
+  if(!pickup){strut(body,[side*1.035,.68,.46],[side*1.035,1.04,.46],.012,dark);box(body,.035,.035,.2,side*1.065,1.01,.94,chrome);}
   strut(body,[side*.91,1.06,-.9],[side*.91,1.06,back],.025,chrome);
   panel(body,.045,.3,1.05,side*1.035,.9,-.05,paint,.012);
   box(body,.035,.035,.22,side*1.065,1.01,.27,chrome);
@@ -45,8 +46,30 @@ function makeCar(color,variant=0){
   // Lower-panel chips and dust are geometry details, visible without texture loading.
   for(let j=0;j<6;j++)box(body,.018,.018+(j%3)*.009,.08+(j%2)*.07,side*1.055,.7+(j%3)*.055,-.85+j*.35,j%2?rust:dusty);
  }
- if(pickup){panel(body,1.75,.12,1.1,0,.94,1.52,dark);for(const x of[-.9,.9]){panel(body,.12,.35,1.25,x,1.08,1.48,paint,.03);strut(body,[x,1.4,.95],[x,1.4,2.03],.035,trim);}panel(body,1.8,.32,.12,0,1.08,2.06,paint,.03);}
- else {panel(body,1.78,.18,.75,0,1.02,1.72,paint);if(variant===1){for(const x of[-.65,.65])box(body,.06,.3,.08,x,1.21,1.82,steel);panel(body,2,.08,.38,0,1.38,1.85,dark,.025);}}
+ if(pickup){
+  // Deep open cargo bed, separate cab bulkhead, ribbed floor and tailgate.
+  panel(body,1.78,.10,1.64,0,.99,1.3,dark,.025);
+  panel(body,1.85,.43,.12,0,1.12,.48,paint,.025);
+  for(const x of[-.93,.93]){panel(body,.16,.48,1.65,x,1.2,1.3,paint,.035);panel(body,.21,.055,1.7,x,1.46,1.3,trim,.015);}
+  for(let j=-3;j<=3;j++)box(body,.035,.025,1.44,j*.22,1.06,1.31,trim);
+  panel(body,1.84,.48,.12,0,1.2,2.12,paint,.025);box(body,.36,.055,.035,0,1.36,2.19,chrome);
+  for(const x of[-.82,.82]){strut(body,[x,1.43,.57],[x,1.91,.62],.055,trim);strut(body,[x,1.91,.62],[x,1.43,.96],.055,trim);}
+  strut(body,[-.82,1.91,.62],[.82,1.91,.62],.055,trim);
+  for(const x of[-1.12,1.12])panel(body,.2,.09,1.45,x,.53,-.15,dark,.025);
+  body.scale.y=1.12;body.position.y=.16;
+ }else{
+  // Three-box sedan: lower cabin and a distinct long rear deck.
+  panel(body,1.8,.18,1.02,0,1.02,1.63,paint,.04);
+  strut(body,[-.81,1.12,1.2],[.81,1.12,1.2],.018,chrome);
+  box(body,.58,.17,.035,0,.82,2.19,dark);
+  body.scale.y=.95;
+ }
+ // Wheel-arch lips follow the tire silhouette; geometry is merged with the body.
+ for(const side of[-1,1])for(const z of[-1.35,1.36])for(let j=0;j<8;j++){
+  const a=j*Math.PI/8,b=(j+1)*Math.PI/8,r=pickup?.57:.53;
+  strut(body,[side*1.065,.49+Math.sin(a)*r,z+Math.cos(a)*r],[side*1.065,.49+Math.sin(b)*r,z+Math.cos(b)*r],pickup?.055:.028,pickup?dark:chrome);
+ }
+
  panel(body,2.2,.17,.2,0,.66,-2.23,chrome,.04);panel(body,2.2,.16,.2,0,.65,2.23,trim,.04);
  box(body,1.15,.24,.05,0,.88,-2.18,dark);for(let i=0;i<6;i++)box(body,.025,.21,.065,-.5+i*.2,.88,-2.21,chrome);
  for(const x of[-.76,.76]){panel(body,.36,.19,.09,x,.95,-2.18,lamp,.03);panel(body,.34,.13,.08,x,.9,2.18,mat('#a9442c',.4),.025);box(body,.13,.07,.04,x,.72,-2.22,mat('#cc8b3d'));}
@@ -55,7 +78,7 @@ function makeCar(color,variant=0){
  if(variant===3){for(const x of[-.67,.67])strut(body,[x,1.78,-.2],[x,1.78,.8],.035,trim);for(const z of[-.2,.3,.8])strut(body,[-.67,1.78,z],[.67,1.78,z],.035,trim);panel(body,1.03,.22,.55,0,1.87,.35,rust);for(const x of[-.35,.35])box(body,.045,.25,.57,x,1.88,.35,dark);}
  strut(body,[.86,.52,1.4],[.86,.52,2.38],.065,steel);
  const wheels=[];for(const x of[-1.04,1.04])for(const z of[-1.35,1.36]){
-  const pivot=new T.Group();pivot.position.set(x,.49,z);
+  const pivot=new T.Group();pivot.position.set(x,pickup?.59:.49,z);if(pickup)pivot.scale.set(1.08,1.2,1.2);
   const wheel=new T.Mesh(new T.CylinderGeometry(.49,.49,.36,24),rubber);wheel.rotation.z=Math.PI/2;wheel.castShadow=true;pivot.add(wheel);
   const hub=new T.Mesh(new T.CylinderGeometry(.28,.28,.375,16),trim);hub.rotation.z=Math.PI/2;pivot.add(hub);
   const cap=new T.Mesh(new T.CylinderGeometry(.115,.115,.39,12),chrome);cap.rotation.z=Math.PI/2;pivot.add(cap);

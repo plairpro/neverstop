@@ -1,8 +1,8 @@
 import {obstacleDepth,terrainHeight} from './course.js?v=7';
 export const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 export const CAR_TYPES=Object.freeze({
- sedan:Object.freeze({name:'Легковая',maxSpeed:96,capacity:80,drive:12.53,frontGrip:9.5,rearGrip:6.7,yawDamping:1.45,poolDrag:.82,duneDrag:1}),
- pickup:Object.freeze({name:'Пикап',maxSpeed:78,capacity:120,drive:10.18,frontGrip:10.5,rearGrip:9.8,yawDamping:2.15,poolDrag:1,duneDrag:.8})
+ sedan:Object.freeze({name:'Легковая',maxSpeed:96,capacity:80,drive:12.53,frontGrip:9.5,rearGrip:7.5,yawDamping:1.58,poolDrag:.82,duneDrag:1}),
+ pickup:Object.freeze({name:'Пикап',maxSpeed:78,capacity:120,drive:10.18,frontGrip:10.5,rearGrip:10.6,yawDamping:2.3,poolDrag:1,duneDrag:.8})
 });
 export function vehicle(id,x,z,type='sedan'){const spec=CAR_TYPES[type]||CAR_TYPES.sedan;return{id,x,z,type:CAR_TYPES[type]?type:'sedan',spec,vx:0,vz:-16,yaw:0,fuel:spec.capacity,sink:0,dead:false,steer:0,yawRate:0,slip:0,lateralAccel:0,distance:0,hits:0,pickups:0,slow:0,boost:0,groundHeight:0,terrainPitch:0,finished:false,finishPlace:0};}
 export function step(c,dt,pits,input=0){
