@@ -1,8 +1,9 @@
+import {assetCar,assetProp} from './quaternius.js?v=12';
 import {makeRoute} from './route.js?v=9';
 import {batchStatic} from './render-utils.js?v=7';
 import {RACE_LENGTH,createCourse,contour,finishCrossings,raceOrder} from './course.js?v=7';
 import * as T from './three.js';
-import {SoftwareRenderer} from './software.js?v=9';
+import {SoftwareRenderer} from './software.js?v=12';
 import{vehicle,step,collide,collideSolid,pickup,clamp}from './physics.js?v=11';
 const $=id=>document.getElementById(id);let renderer;try{renderer=new T.WebGLRenderer({canvas:$('world'),antialias:true,powerPreference:'high-performance'});}catch(e){renderer=new SoftwareRenderer($('world'));document.querySelector('.tag').textContent='ОБЛЕГЧЁННАЯ ГРАФИКА';}
 renderer.setPixelRatio(Math.min(devicePixelRatio,1.25));renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.08;
@@ -22,72 +23,7 @@ function panel(g,w,h,d,x,y,z,m,r=.07){
 }
 function strut(g,a,b,r,m){const from=new T.Vector3(...a),to=new T.Vector3(...b),delta=to.clone().sub(from);const mesh=new T.Mesh(new T.CylinderGeometry(r,r,delta.length(),6),m);mesh.position.copy(from.add(to).multiplyScalar(.5));mesh.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),delta.normalize());mesh.castShadow=true;g.add(mesh);return mesh;}
 function glazing(g,points,m){const geo=new T.BufferGeometry();geo.setAttribute('position',new T.Float32BufferAttribute(points.flat(),3));geo.setIndex([0,1,2,0,2,3]);geo.computeVertexNormals();const mesh=new T.Mesh(geo,m);g.add(mesh);return mesh;}
-function makeCar(color,variant=0){
- const g=new T.Group(),body=new T.Group();g.add(body);g.userData.car=true;
- const paint=mat(color,.48,.42),trim=mat('#655e50',.55,.6),chrome=mat('#a49d89',.33,.72),window=mat('#263d43',.18,.55);window.side=T.DoubleSide;
- const dusty=mat('#a79473',.95,.05),dark=mat('#292923',.8,.25),lamp=mat('#e8d8a6',.3,.15);lamp.emissive=new T.Color('#89713d');lamp.emissiveIntensity=.16;
- panel(body,2.04,.4,4.35,0,.78,0,paint);panel(body,2.03,.2,4.15,0,.59,0,dark,.05);
- // Long hood, separate front fenders and a gently sloping bonnet.
- const hood=panel(body,1.67,.21,1.57,0,1.01,-1.25,paint);hood.rotation.x=-.045;
- for(const x of[-.94,.94]){panel(body,.24,.36,1.66,x,.96,-1.23,paint,.04);panel(body,.25,.33,1.43,x,.92,1.35,paint,.04);panel(body,.12,.14,3.65,x,.63,.05,dusty,.025);}
- const pickup=variant===2,roofFront=pickup?-.52:-.38,roofRear=pickup?.18:.57,back=pickup?.38:1.12;
- panel(body,1.57,.12,roofRear-roofFront+.1,0,1.65,(roofFront+roofRear)/2,paint,.035);
- glazing(body,[[-.88,1.03,-.91],[.88,1.03,-.91],[.73,1.6,roofFront],[-.73,1.6,roofFront]],window);
- glazing(body,[[.86,1.04,back],[-.86,1.04,back],[-.73,1.6,roofRear],[.73,1.6,roofRear]],window);
- for(const side of[-1,1]){
-  glazing(body,[[side*.89,1.06,-.85],[side*.89,1.06,back-.06],[side*.74,1.59,roofRear],[side*.74,1.59,roofFront]],window);
-  strut(body,[side*.9,1.01,-.94],[side*.76,1.66,roofFront],.045,paint);strut(body,[side*.88,1.01,back],[side*.76,1.66,roofRear],.055,paint);
-  strut(body,[side*.89,1.05,pickup?.02:.12],[side*.75,1.63,pickup?.02:.12],.035,dark);
-  if(!pickup){strut(body,[side*1.035,.68,.46],[side*1.035,1.04,.46],.012,dark);box(body,.035,.035,.2,side*1.065,1.01,.94,chrome);}
-  strut(body,[side*.91,1.06,-.9],[side*.91,1.06,back],.025,chrome);
-  panel(body,.045,.3,1.05,side*1.035,.9,-.05,paint,.012);
-  box(body,.035,.035,.22,side*1.065,1.01,.27,chrome);
-  panel(body,.24,.14,.28,side*1.12,1.18,-.6,paint,.025);
-  // Lower-panel chips and dust are geometry details, visible without texture loading.
-  for(let j=0;j<6;j++)box(body,.018,.018+(j%3)*.009,.08+(j%2)*.07,side*1.055,.7+(j%3)*.055,-.85+j*.35,j%2?rust:dusty);
- }
- if(pickup){
-  // Deep open cargo bed, separate cab bulkhead, ribbed floor and tailgate.
-  panel(body,1.78,.10,1.64,0,.99,1.3,dark,.025);
-  panel(body,1.85,.43,.12,0,1.12,.48,paint,.025);
-  for(const x of[-.93,.93]){panel(body,.16,.48,1.65,x,1.2,1.3,paint,.035);panel(body,.21,.055,1.7,x,1.46,1.3,trim,.015);}
-  for(let j=-3;j<=3;j++)box(body,.035,.025,1.44,j*.22,1.06,1.31,trim);
-  panel(body,1.84,.48,.12,0,1.2,2.12,paint,.025);box(body,.36,.055,.035,0,1.36,2.19,chrome);
-  for(const x of[-.82,.82]){strut(body,[x,1.43,.57],[x,1.91,.62],.055,trim);strut(body,[x,1.91,.62],[x,1.43,.96],.055,trim);}
-  strut(body,[-.82,1.91,.62],[.82,1.91,.62],.055,trim);
-  for(const x of[-1.12,1.12])panel(body,.2,.09,1.45,x,.53,-.15,dark,.025);
-  body.scale.y=1.12;body.position.y=.16;
- }else{
-  // Three-box sedan: lower cabin and a distinct long rear deck.
-  panel(body,1.8,.18,1.02,0,1.02,1.63,paint,.04);
-  strut(body,[-.81,1.12,1.2],[.81,1.12,1.2],.018,chrome);
-  box(body,.58,.17,.035,0,.82,2.19,dark);
-  body.scale.y=.95;
- }
- // Wheel-arch lips follow the tire silhouette; geometry is merged with the body.
- for(const side of[-1,1])for(const z of[-1.35,1.36])for(let j=0;j<8;j++){
-  const a=j*Math.PI/8,b=(j+1)*Math.PI/8,r=pickup?.57:.53;
-  strut(body,[side*1.065,.49+Math.sin(a)*r,z+Math.cos(a)*r],[side*1.065,.49+Math.sin(b)*r,z+Math.cos(b)*r],pickup?.055:.028,pickup?dark:chrome);
- }
-
- panel(body,2.2,.17,.2,0,.66,-2.23,chrome,.04);panel(body,2.2,.16,.2,0,.65,2.23,trim,.04);
- box(body,1.15,.24,.05,0,.88,-2.18,dark);for(let i=0;i<6;i++)box(body,.025,.21,.065,-.5+i*.2,.88,-2.21,chrome);
- for(const x of[-.76,.76]){panel(body,.36,.19,.09,x,.95,-2.18,lamp,.03);panel(body,.34,.13,.08,x,.9,2.18,mat('#a9442c',.4),.025);box(body,.13,.07,.04,x,.72,-2.22,mat('#cc8b3d'));}
- if(variant===0||variant===1){panel(body,.65,.17,.54,0,1.2,-1.15,dark,.04);for(let j=0;j<3;j++)box(body,.5,.025,.04,0,1.29,-1.32+j*.13,chrome);}
- // Exterior cage and strapped equipment retain the wasteland setting.
- if(variant===3){for(const x of[-.67,.67])strut(body,[x,1.78,-.2],[x,1.78,.8],.035,trim);for(const z of[-.2,.3,.8])strut(body,[-.67,1.78,z],[.67,1.78,z],.035,trim);panel(body,1.03,.22,.55,0,1.87,.35,rust);for(const x of[-.35,.35])box(body,.045,.25,.57,x,1.88,.35,dark);}
- strut(body,[.86,.52,1.4],[.86,.52,2.38],.065,steel);
- const wheels=[];for(const x of[-1.04,1.04])for(const z of[-1.35,1.36]){
-  const pivot=new T.Group();pivot.position.set(x,pickup?.59:.49,z);if(pickup)pivot.scale.set(1.08,1.2,1.2);
-  const wheel=new T.Mesh(new T.CylinderGeometry(.49,.49,.36,24),rubber);wheel.rotation.z=Math.PI/2;wheel.castShadow=true;pivot.add(wheel);
-  const hub=new T.Mesh(new T.CylinderGeometry(.28,.28,.375,16),trim);hub.rotation.z=Math.PI/2;pivot.add(hub);
-  const cap=new T.Mesh(new T.CylinderGeometry(.115,.115,.39,12),chrome);cap.rotation.z=Math.PI/2;pivot.add(cap);
-  for(let j=0;j<8;j++){const a=j*Math.PI/4;const spoke=box(pivot,.4,.06,.085,0,Math.sin(a)*.19,Math.cos(a)*.19,dark);spoke.rotation.x=-a;}
-  const tread=new T.TorusGeometry(.455,.045,4,24);for(const side of[-.16,.16]){const ring=new T.Mesh(tread,dark);ring.rotation.y=Math.PI/2;ring.position.x=side;pivot.add(ring);}
-  const spin=new T.Group();for(const part of [...pivot.children])spin.add(part);batchStatic(spin);pivot.add(spin);g.add(pivot);wheels.push({pivot,wheel:spin,front:z<0});
- }
- batchStatic(body);scene.add(g);return{g,body,wheels};
-}
+function makeCar(color,variant=0){const model=assetCar(variant===2?'pickup':'sedan');scene.add(model.g);return model;}
 // Ground tiles recycle behind the convoy. Noise is stable in world space.
 const noise=(x,z)=>Math.sin(x*.16+Math.sin(z*.035))*Math.cos(z*.12)*.7+Math.sin(x*.041+z*.023)*1.3;
 const groundGeo=new T.PlaneGeometry(190,180,40,36);groundGeo.rotateX(-Math.PI/2);const base=groundGeo.attributes.position;for(let i=0;i<base.count;i++){const x=base.getX(i),z=base.getZ(i);base.setY(i,noise(x,z)*clamp((Math.abs(x)-23)/22,0,1)-.16);}groundGeo.computeVertexNormals();const grounds=[];for(let i=0;i<4;i++){const m=new T.Mesh(groundGeo,sand);m.position.z=120-i*180;m.receiveShadow=true;scene.add(m);grounds.push(m);}
@@ -99,6 +35,13 @@ for(let i=0;i<115;i++){
  if(i%4===0){const rock=new T.Mesh(new T.DodecahedronGeometry(.18+Math.random()*.45,0),mat('#a2957c'));rock.scale.set(1,.5,1.3);rock.castShadow=true;g.add(rock);}
  else {const h=.35+Math.random()*.65;for(let j=0;j<3;j++){const a=j*2.1+i;strut(g,[0,0,0],[Math.cos(a)*.4,h,Math.sin(a)*.4],.035,twigMat);const leaf=new T.Mesh(new T.IcosahedronGeometry(.25+Math.random()*.18,0),scrubMat);leaf.position.set(Math.cos(a)*.35,h,Math.sin(a)*.35);leaf.scale.y=.7;leaf.castShadow=true;g.add(leaf);}}
  g.position.set(x,Math.max(0,noise(x,z)*.3),z);scene.add(g);props.push(g);
+}
+// Quaternius roadside salvage, with solid collision footprints.
+for(let i=0;i<28;i++){
+ const type=i%7===0?'tower':i%3===0?'barrier':'barrel',g=assetProp(type);
+ const bounds=new T.Box3().setFromObject(g),size=bounds.getSize(new T.Vector3()),target=type==='tower'?8:type==='barrier'?3.5:1.25;
+ const scale=target/size.y;g.scale.setScalar(scale);g.position.set((i%2?1:-1)*(type==='tower'?35:23+i%3*2),-bounds.min.y*scale,-60-i*40);g.rotation.y=i*.73;scene.add(g);distant.push(g);
+ solids.push({object:g,hx:size.x*scale/2,hz:size.z*scale/2});
 }
 // Irregular pools and low, traversable terrain share their contours with the physics.
 function makeObstacle(p){const g=new T.Group(),verts=[],idx=[],segments=40,rings=p.kind==='pool'?2:8;
