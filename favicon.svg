@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Jerry can: ember body, dark handle cut-outs, stamped X ribs, steel spout -->
+  <path d="M24 8h12v6H24z" fill="#4a463b"/>
+  <path d="M40 14l6-7 5 4-6 7z" fill="#8a8578"/>
+  <path d="M14 18c0-3 2-5 5-5h20l9 8v32c0 3-2 5-5 5H19c-3 0-5-2-5-5z" fill="#e8742f"/>
+  <path d="M19 13h20l9 8v4H14v-7c0-3 2-5 5-5z" fill="#c95e22"/>
+  <path d="M20 16h6v5h-6zM29 16h6v5h-6z" fill="#3a2414"/>
+  <path d="M21 30l22 20M43 30L21 50" stroke="#b9531b" stroke-width="3.5" stroke-linecap="round"/>
+  <path d="M18 27h28v2H18z" fill="#f39556"/>
+</svg>
