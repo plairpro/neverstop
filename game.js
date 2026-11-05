@@ -1,12 +1,12 @@
-import {makeZombies,resetZombies,stepZombies,renderZombies} from './zombies.js?v=15';
-import {assetCar,assetProp,kitMesh,kitBox,sharedKitMaterials,sharedKitGeometries} from './quaternius.js?v=15';
-import {makeRoute} from './route.js?v=15';
-import {batchStatic} from './render-utils.js?v=15';
-import {RACE_LENGTH,roadCenter,createCourse,contour,finishCrossings} from './course.js?v=15';
+import {makeZombies,resetZombies,stepZombies,renderZombies} from './zombies.js?v=16';
+import {assetCar,assetProp,kitMesh,kitBox,sharedKitMaterials,sharedKitGeometries} from './quaternius.js?v=16';
+import {makeRoute} from './route.js?v=16';
+import {batchStatic} from './render-utils.js?v=16';
+import {RACE_LENGTH,roadCenter,createCourse,contour,finishCrossings} from './course.js?v=16';
 import * as T from './three.js';
-import {SoftwareRenderer} from './software.js?v=15';
-import {vehicle,step,collide,collideSolid,pickup,clamp} from './physics.js?v=15';
-import {CARGO_SLOTS,loadCargo,loadFactor,createStorm,stepStorm,dropCargo,stepLoose,grabCargo,cargoForImpact,caravanCargo,deliver,STORM_EDGE} from './caravan.js?v=15';
+import {SoftwareRenderer} from './software.js?v=16';
+import {vehicle,step,collide,collideSolid,pickup,clamp} from './physics.js?v=16';
+import {CARGO_SLOTS,PLAYER_START_CARGO,loadCargo,loadFactor,createStorm,stepStorm,dropCargo,stepLoose,grabCargo,cargoForImpact,caravanCargo,deliver,stickCar,holdStuck,tryRescue,incidentCandidate,STORM_EDGE,STORM_MAX_GAP} from './caravan.js?v=16';
 const $=id=>document.getElementById(id);
 
 // Graphics quality: full picture by default, economy mode trades resolution and frame rate for a quieter laptop.
@@ -99,8 +99,8 @@ function makeCar(color){const model=assetCar('pickup',color);const bed=new T.Gro
 function syncCargo(model,c){const n=c.cargo.length;while(model.slots.length>n){const m=model.slots.pop();model.bed.remove(m);disposeRaceObject(m);}
  while(model.slots.length<n){const i=model.slots.length,m=cargoMesh(c.cargo[i]);const [x,y,z]=BED[i];m.position.set(x,y,z);m.rotation.y=(i*1.7)%1*.5-.25;model.bed.add(m);model.slots.push(m);}}
 // Loose cargo lies on the sand until someone picks it up or the storm takes it.
-const ringMat=new T.MeshBasicMaterial({color:0xf2dfb0,transparent:true,opacity:.24,depthWrite:false});
-const loosePool=[];function looseMesh(kind){let entry=loosePool.find(e=>!e.used&&e.kind===kind);if(!entry){entry={kind,m:cargoMesh(kind),used:false};const ring=new T.Mesh(zoneGeo,ringMat);ring.scale.set(2.4,1,2.4);ring.position.y=.03;entry.m.add(ring);scene.add(entry.m);loosePool.push(entry);}entry.used=true;entry.m.visible=true;return entry;}
+const ringMat=new T.MeshBasicMaterial({color:0xffe2a0,transparent:true,opacity:.34,depthWrite:false}),beamMat=new T.MeshBasicMaterial({color:0xffd27a,transparent:true,opacity:.38,depthWrite:false,blending:T.AdditiveBlending}),beamGeo=new T.CylinderGeometry(.09,.22,5,8,1,true);
+const loosePool=[];function looseMesh(kind){let entry=loosePool.find(e=>!e.used&&e.kind===kind);if(!entry){entry={kind,m:cargoMesh(kind),used:false};const ring=new T.Mesh(zoneGeo,ringMat);ring.scale.set(2.4,1,2.4);ring.position.y=.03;entry.m.add(ring);const beam=new T.Mesh(beamGeo,beamMat);beam.position.y=2.6;entry.m.add(beam);scene.add(entry.m);loosePool.push(entry);}entry.used=true;entry.m.visible=true;return entry;}
 function releaseLoose(){for(const e of loosePool){e.used=false;e.m.visible=false;}}
 
 // Oasis settlement at the finish: stacked containers, a water tower, a pond and palms.
@@ -162,23 +162,22 @@ let lastImpact=-1,impactBuffer;
 function impactSound(strength=8,distance=0){if(!audio||muted||volume===0||audio.currentTime-lastImpact<.09||distance>35)return;lastImpact=audio.currentTime;const t=audio.currentTime,level=clamp(strength/20,.12,1)*volume*.22/(1+distance*.08);if(!impactBuffer){impactBuffer=audio.createBuffer(1,Math.ceil(audio.sampleRate*.22),audio.sampleRate);const samples=impactBuffer.getChannelData(0);for(let i=0;i<samples.length;i++)samples[i]=(Math.random()*2-1)*Math.exp(-i/samples.length*5);}
  const source=audio.createBufferSource(),tone=audio.createBiquadFilter(),envelope=audio.createGain();source.buffer=impactBuffer;tone.type='bandpass';tone.frequency.value=850;tone.Q.value=.7;envelope.gain.setValueAtTime(level,t);envelope.gain.exponentialRampToValueAtTime(.0001,t+.22);source.connect(tone);tone.connect(envelope);envelope.connect(audio.destination);source.start(t);source.onended=()=>{source.disconnect();tone.disconnect();envelope.disconnect();};
  const thud=audio.createOscillator(),low=audio.createGain();thud.type='triangle';thud.frequency.setValueAtTime(145,t);thud.frequency.exponentialRampToValueAtTime(42,t+.16);low.gain.setValueAtTime(level*1.4,t);low.gain.exponentialRampToValueAtTime(.0001,t+.18);thud.connect(low);low.connect(audio.destination);thud.start(t);thud.stop(t+.2);thud.onended=()=>{thud.disconnect();low.disconnect();};}
-const shared=new Set([woodMat,slatMat,steel,rubber,rust,fuelMat,sand,nitroMat,chromeSupply,labelMat,poolMat,poolInner,rockMat,tarpMat,ropeMat,zoneFuel,zoneNitro,ringMat,...sharedKitMaterials]),sharedGeo=new Set([crateGeo,slatGeo,zoneGeo,...sharedKitGeometries]);
+const shared=new Set([woodMat,slatMat,steel,rubber,rust,fuelMat,sand,nitroMat,chromeSupply,labelMat,poolMat,poolInner,rockMat,tarpMat,ropeMat,zoneFuel,zoneNitro,ringMat,beamMat,...sharedKitMaterials]),sharedGeo=new Set([beamGeo,crateGeo,slatGeo,zoneGeo,...sharedKitGeometries]);
 function disposeRaceObject(g){scene.remove(g);const materials=new Set(),geometries=new Set();g.traverse(o=>{if(o.isMesh){if(!sharedGeo.has(o.geometry))geometries.add(o.geometry);if(!shared.has(o.material))materials.add(o.material);}});geometries.forEach(a=>a.dispose());materials.forEach(a=>a.dispose());}
 
-// Caravan formation: two pickups lead, the player in the middle, one brings up the rear.
-const START=[[0,0],[-6,-13],[6,-15],[0,13]];
+// Caravan formation: three partners lead, the player is the rear guard.
+const START=[[0,0],[-6,-16],[6,-19],[0,-33]];let TOTAL=0,nextStuck=0,nextDrop=0;
 function reset(){menuDirty=true;resetZombies(zombies);for(const m of models)disposeRaceObject(m.g);for(const p of pits)disposeRaceObject(p.g);for(const f of fuels)disposeRaceObject(f.g);releaseLoose();loose=[];
- cars=START.map(([x,z],i)=>loadCargo(vehicle(i,x,z,'pickup')));models=cars.map((c,i)=>makeCar(paints[i]));cars.forEach((c,i)=>{c.loadFactor=loadFactor(c);c.cooldown=0;syncCargo(models[i],c);});
+ cars=START.map(([x,z],i)=>loadCargo(vehicle(i,x,z,'pickup'),i?CARGO_SLOTS:PLAYER_START_CARGO));TOTAL=caravanCargo(cars);nextStuck=8;nextDrop=4.5;models=cars.map((c,i)=>makeCar(paints[i]));cars.forEach((c,i)=>{c.loadFactor=loadFactor(c);c.cooldown=0;syncCargo(models[i],c);});
  storm=createStorm();const course=createCourse();pits=course.obstacles.map(makeObstacle);fuels=course.supplies.map(makeSupply);finishCount=0;watching=false;trackPositions.fill(0);trackGeo.attributes.position.needsUpdate=true;ti=0;for(const p of dust){p.life=0;p.m.visible=false;}
  time=0;acc=0;ended=false;paused=false;$('modal').hidden=true;$('status').textContent='';$('sink').style.display='none';$('boost').hidden=true;$('playerTag').hidden=true;}
 function start(){reset();playing=true;$('menu').hidden=true;$('footer').hidden=true;$('hud').hidden=false;$('pause').hidden=false;document.body.classList.add('playing');audioStart();clearSteering();}
-const TOTAL=CARGO_SLOTS*4;
 let rosterMarkup='';function updateRaceHud(){const total=caravanCargo(cars);const value=total+'<span>из '+TOTAL+'</span>';if($('alive').innerHTML!==value)$('alive').innerHTML=value;
- const markup=cars.map(a=>`<div style="opacity:${a.dead?.45:1}"><i style="background:${paints[a.id]}"></i><b>${names[a.id]}</b><span>${a.dead?'Буря':a.finished?'В оазисе '+a.delivered:a.cargo.length}</span></div>`).join('');if(markup!==rosterMarkup){$('roster').innerHTML=markup;rosterMarkup=markup;}}
+ const markup=cars.map(a=>`<div style="opacity:${a.dead?.45:1}"><i style="background:${paints[a.id]}"></i><b>${names[a.id]}</b><span class="${a.stuck?'stuck':''}">${a.dead?'Буря':a.finished?'В оазисе '+a.delivered:a.stuck?'Застрял':a.cargo.length}</span></div>`).join('');if(markup!==rosterMarkup){$('roster').innerHTML=markup;rosterMarkup=markup;}}
 function finish(){updateRaceHud();ended=true;playing=false;watching=false;clearSteering();document.body.classList.remove('stormy');const arrived=cars.filter(c=>c.finished).length,delivered=cars.reduce((n,c)=>n+(c.finished?c.delivered:0),0);
  $('modal').hidden=false;$('resultLabel').hidden=true;$('resultDetail').hidden=false;$('settings').hidden=true;
  $('resultTitle').innerHTML=arrived===0?'Буря забрала<br>караван':arrived===4?'Караван<br>дошёл':'Дошли<br>не все';
- $('resultDetail').innerHTML=`<span>Доехали ${arrived} из 4</span><span>Груз ${delivered} из ${TOTAL}</span><span>${cars[0].finished?'Ты довёз '+cars[0].delivered:'Тебя накрыла буря'}</span><span>${Math.floor(time)} сек</span>`;
+ $('resultDetail').innerHTML=`<span>Доехали ${arrived} из 4</span><span>Груз ${delivered} из ${TOTAL}</span><span>Спасено ${cars[0].rescues}</span><span>Поймано ${cars[0].catches}</span>`;
  $('again').textContent='Ещё заезд';$('pause').hidden=true;beep(arrived?640:100,.5);$('again').focus();}
 function pause(){if(ended||!playing)return;paused=!paused;if(paused&&gain){gain.gain.setTargetAtTime(0,audio.currentTime,.05);windGain.gain.setTargetAtTime(0,audio.currentTime,.05);}$('modal').hidden=!paused;if(paused){$('resultLabel').hidden=true;$('resultTitle').innerHTML='Переведи<br>дух';$('resultDetail').hidden=true;$('settings').hidden=false;$('settings').open=false;$('again').textContent='Продолжить';$('again').focus();}else{$('pause').focus();}keys.clear();clearSteering();}
 function updateSound(){const enabled=!muted&&volume>0;$('sound').setAttribute('aria-label',enabled?'Выключить звук':'Включить звук');$('sound').setAttribute('aria-pressed',String(enabled));$('sound').classList.toggle('muted',!enabled);}
@@ -194,24 +193,32 @@ for(const event of ['pointerup','pointercancel','lostpointercapture'])document.a
 addEventListener('keydown',e=>{if(e.target.matches('input,summary'))return;if(['ArrowLeft','ArrowRight','KeyA','KeyD','Space'].includes(e.code))e.preventDefault();keys.add(e.code);if(!e.repeat&&(e.code==='Escape'||e.code==='KeyP'))pause();});
 addEventListener('keyup',e=>keys.delete(e.code));addEventListener('blur',()=>{keys.clear();clearSteering();if(playing&&!paused)pause();});document.addEventListener('visibilitychange',()=>{if(document.hidden&&playing&&!paused)pause();});
 function control(){let v=touch+(keys.has('ArrowRight')||keys.has('KeyD')?1:0)-(keys.has('ArrowLeft')||keys.has('KeyA')?1:0);const gp=navigator.getGamepads?.()[0];if(gp&&Math.abs(gp.axes[0])>.22)v+=gp.axes[0];return clamp(v,-1,1);}
-// Caravan partners: hold a lane, refuel when low, pick up dropped cargo, keep clear of other pickups.
+// Caravan partners hold a lane, refuel when low and keep clear of other pickups.
+// With ?debug autopilot the player's pickup plays the rear guard: stuck partners first, then loose cargo.
 const LANE=[0,-6,6,0];
 function ai(c){let target=roadCenter(c.z-34)+LANE[c.id]+Math.sin(time*.35+c.id*2)*2.5,best=Infinity;
  if(c.fuel<c.spec.capacity*.8)for(const f of fuels){const dz=c.z-f.z;if(f.active&&f.kind==='fuel'&&dz>4&&dz<70){const score=dz+Math.abs(f.x-c.x)*2;if(score<best){best=score;target=f.x;}}}
- if(c.cargo.length<CARGO_SLOTS)for(const it of loose){const dz=c.z-it.z;if(it.active&&dz>3&&dz<45){const score=dz*.6+Math.abs(it.x-c.x)*1.6;if(score<best){best=score;target=it.x;}}}
- for(const o of cars){if(o===c||o.dead||o.finished)continue;const dz=c.z-o.z,dx=o.x-c.x;if(dz>-3&&dz<14&&Math.abs(dx)<4.5){target=o.x+(dx>0?-6:6);break;}}
+ if(c.id===0){best=Infinity;for(const o of cars){const dz=c.z-o.z;if(o.stuck&&!o.dead&&dz>0&&dz<70&&dz<best){best=dz;target=o.x;}}if(best===Infinity&&c.cargo.length<CARGO_SLOTS)for(const it of loose){const dz=c.z-it.z;if(it.active&&dz>3&&dz<45){const score=dz*.6+Math.abs(it.x-c.x)*1.6;if(score<best){best=score;target=it.x;}}}}
+ for(const o of cars){if(o===c||o.dead||o.finished||(c.id===0&&o.stuck))continue;const dz=c.z-o.z,dx=o.x-c.x;if(dz>-3&&dz<14&&Math.abs(dx)<4.5){target=o.x+(dx>0?-6:6);break;}}
  for(const p of pits){const dz=c.z-p.z;if(p.kind!=='dune'&&dz>0&&dz<24&&Math.abs(target-p.x)<p.r+2.5){target=p.x+(c.x>p.x?1:-1)*(p.r+4);break;}}
  target=clamp(target,roadCenter(c.z-25)-14,roadCenter(c.z-25)+14);const desired=clamp((target-c.x)*.1,-.65,.65);return clamp((desired-c.yaw)*3,-1,1);}
 function lose(c,count){if(count<=0||c.cooldown>0||!c.cargo.length)return;c.cooldown=.6;const dropped=dropCargo(c,count,loose);for(const it of dropped)it.entry=looseMesh(it.kind);c.loadFactor=loadFactor(c);if(c.id===0&&!watching)say(dropped.length>1?'Выпало '+dropped.length+' места груза':'Груз выпал из кузова');}
 function freeLoose(it){if(it.entry){it.entry.used=false;it.entry.m.visible=false;it.entry=null;}}
-function tick(dt){time+=dt;for(const c of cars){c.prevX=c.x;c.prevZ=c.z;c.cooldown=Math.max(0,c.cooldown-dt);}const previous=cars.map(c=>c.z);for(const c of cars)step(c,dt,pits,c.id||autopilot?ai(c):control());
- for(let i=0;i<4;i++)for(let j=i+1;j<4;j++){const a=cars[i],b=cars[j],strength=Math.hypot(a.vx-b.vx,a.vz-b.vz);if(collide(a,b)){impactSound(strength,Math.hypot(a.x-cars[0].x,a.z-cars[0].z));const n=cargoForImpact(strength);lose(a,n);lose(b,n);}}
+// Trouble ahead for the rear guard: a partner bogs down, or a load works loose.
+function incidents(dt){if(watching||cars[0].dead)return;nextStuck-=dt;nextDrop-=dt;
+ if(nextStuck<=0){const c=incidentCandidate(cars,cars[0]);if(c){stickCar(c);say(names[c.id]+' застрял, толкни его');toast=3;beep(300,.3);nextStuck=10+Math.random()*6;}else nextStuck=1.5;}
+ if(nextDrop<=0){const c=incidentCandidate(cars.filter(o=>o.cargo.length>3),cars[0]);if(c){c.cooldown=0;lose(c,1);say(names[c.id]+' потерял груз, подбери');nextDrop=10+Math.random()*5;}else nextDrop=1.5;}}
+function tick(dt){if(time===0)say('Ты замыкаешь караван, буря позади');time+=dt;for(const c of cars){c.prevX=c.x;c.prevZ=c.z;c.cooldown=Math.max(0,c.cooldown-dt);}const previous=cars.map(c=>c.z);for(const c of cars){step(c,dt,pits,c.id||autopilot?ai(c):control());holdStuck(c,dt);}
+ for(let i=0;i<4;i++)for(let j=i+1;j<4;j++){const a=cars[i],b=cars[j],strength=Math.hypot(a.vx-b.vx,a.vz-b.vz);
+  if(Math.hypot(a.x-b.x,a.z-b.z)<2.95&&(a.stuck||b.stuck)){const helper=a.stuck?b:a,stuck=a.stuck?a:b;if(tryRescue(helper,stuck,strength)){collide(a,b);stuck.vz=Math.min(stuck.vz,-11);impactSound(strength*.6,0);if(helper.id===0){say(names[stuck.id]+' снова в пути');beep(820,.22);}continue;}}
+  if(collide(a,b)){impactSound(strength,Math.hypot(a.x-cars[0].x,a.z-cars[0].z));const n=a.id&&b.id?0:cargoForImpact(strength);lose(a,n);lose(b,n);}}
  for(const c of cars)for(const solid of solids){const impact=collideSolid(c,solid);if(impact>1){impactSound(impact,Math.hypot(c.x-cars[0].x,c.z-cars[0].z));lose(c,cargoForImpact(impact));}}
- stepZombies(zombies,cars,dt,time,c=>{impactSound(7,Math.hypot(c.x-cars[0].x,c.z-cars[0].z));if(c.cargo.length)lose(c,1);else if(c.id===0)say('Удар — потеря скорости');});
- stepStorm(storm,cars,dt,time);stepLoose(loose,storm,dt);for(const it of loose)if(!it.active)freeLoose(it);
+ stepZombies(zombies,cars,dt,time,c=>{impactSound(7,Math.hypot(c.x-cars[0].x,c.z-cars[0].z));if(c.id===0){if(c.cargo.length)lose(c,1);else say('Удар, потеря скорости');}});
+ const lostBefore=cars.map(c=>c.dead);stepStorm(storm,cars,dt,time);cars.forEach((c,i)=>{if(c.dead&&!lostBefore[i]&&i&&!watching){say('Буря забрала '+names[i]);beep(120,.4);}});
+ incidents(dt);stepLoose(loose,storm,dt);for(const it of loose)if(!it.active)freeLoose(it);
  finishCount=finishCrossings(cars,previous,time,dt,finishCount);for(const c of cars)deliver(c);
  for(const c of cars){for(const f of fuels)if(pickup(c,f)){f.g.visible=false;if(c.id===0&&!watching){say(f.kind==='nitro'?'Нитро на 4 секунды':'+5 л');beep(f.kind==='nitro'?980:740,.19);}}
-  for(const it of loose)if(grabCargo(c,it)){c.loadFactor=loadFactor(c);freeLoose(it);if(c.id===0&&!watching){say('Груз подобран');beep(560,.16);}}}
+  for(const it of loose)if(grabCargo(c,it)){c.loadFactor=loadFactor(c);freeLoose(it);if(c.id===0&&!watching){say(it.owner?'Груз '+names[it.owner]+' у тебя':'Груз подобран');beep(560,.16);}}}
  loose=loose.filter(it=>it.active);
  for(let i=0;i<4;i++)syncCargo(models[i],cars[i]);
  if(cars.every(c=>c.dead||c.finished)){finish();return;}
@@ -219,13 +226,14 @@ function tick(dt){time+=dt;for(const c of cars){c.prevX=c.x;c.prevZ=c.z;c.cooldo
  if(!watching&&(cars[0].dead||cars[0].finished)){watching=true;clearSteering();$('status').textContent=cars[0].finished?'Ты в оазисе, ждём остальных':'Тебя накрыла буря, караван ещё в пути';toast=4;}
 }
 function focusCar(){if(!watching)return cars[0];let f=null;for(const c of cars)if(!c.dead&&!c.finished&&(!f||c.z>f.z))f=c;return f||cars[0];}
-if(location.search.includes('debug'))window.__ns={T,scene,camera,get cars(){return cars},get models(){return models},get storm(){return storm},renderer,post,set view(v){debugView=v},sim(seconds,auto=true){autopilot=auto;for(let t=0;t<seconds*60&&playing;t++)tick(1/60);return {time:+time.toFixed(1),storm:+storm.z.toFixed(0),cars:cars.map(c=>({z:+c.z.toFixed(0),cargo:c.cargo.length,dead:c.dead,fin:c.finished,del:c.delivered,fuel:+c.fuel.toFixed(0),lost:c.lostCargo})),loose:loose.length,swallowed:storm.swallowed}}};let autopilot=false;let debugView=null;
+if(location.search.includes('debug'))window.__ns={T,scene,camera,get cars(){return cars},get models(){return models},get storm(){return storm},renderer,post,set view(v){debugView=v},sim(seconds,auto=true){autopilot=auto;for(let t=0;t<seconds*60&&playing;t++)tick(1/60);return {time:+time.toFixed(1),storm:+storm.z.toFixed(0),cars:cars.map(c=>({z:+c.z.toFixed(0),cargo:c.cargo.length,dead:c.dead,fin:c.finished,del:c.delivered,fuel:+c.fuel.toFixed(0),lost:c.lostCargo,stuck:c.stuck,resc:c.rescues,catch:c.catches})),loose:loose.length,swallowed:storm.swallowed}}};let autopilot=false;let debugView=null;
+const helpTags=[null,1,2,3].map(i=>{if(!i)return null;const d=document.createElement('div');d.className='helptag';d.hidden=true;d.textContent='Толкни';$('hud').appendChild(d);return d;});
 let last=performance.now(),lastHud=0,frame=0;applyQuality();reset();camera.position.set(24,35,36);const look=new T.Vector3(),camTarget=new T.Vector3(),fogBase=new T.Color(SKY),fogStorm=new T.Color('#9f774c');
 function render(now){requestAnimationFrame(render);if(document.hidden||paused||ended||(!playing&&!menuDirty)){last=now;return;}const interval=1000/(playing?fpsCap:10);if(now-last<interval-1)return;let dt=Math.min(.1,(now-last)/1000);last=now;frame++;
  if(playing&&!paused){acc+=dt*(watching?2:1);while(acc>=1/60&&playing){tick(1/60);acc-=1/60;}}
  const c=focusCar(),narrow=innerWidth<650,active=playing||ended;const viewZ=active?c.z:0;
- if(active){camTarget.set(c.x*.8+roadCenter(viewZ-25)*.2,narrow?43:35,viewZ+38);if(camera.position.distanceTo(camTarget)>60)camera.position.copy(camTarget);else camera.position.lerp(camTarget,1-Math.exp(-dt*(watching?2.5:4)));}else camera.position.set(26+Math.sin(now*.00006)*4,30,29);
- look.set(active?(c.x*.8+roadCenter(viewZ-25)*.2):3,0,viewZ-(narrow?13:12));camera.lookAt(look);
+ if(active){camTarget.set(c.x*.8+roadCenter(viewZ-25)*.2,narrow?50:40,viewZ+44);if(camera.position.distanceTo(camTarget)>60)camera.position.copy(camTarget);else camera.position.lerp(camTarget,1-Math.exp(-dt*(watching?2.5:4)));}else camera.position.set(26+Math.sin(now*.00006)*4,30,29);
+ look.set(active?(c.x*.8+roadCenter(viewZ-25)*.2):3,0,viewZ-(narrow?8:5));camera.lookAt(look);
  sun.position.set(c.x-40,26,viewZ+22);sun.target.position.set(c.x,0,viewZ-14);fill.position.set(c.x+30,25,viewZ-40);fill.target.position.set(c.x,0,viewZ);
  for(const g of grounds){while(g.position.z>viewZ+220)g.position.z-=720;while(g.position.z<viewZ-500)g.position.z+=720;}
  for(const p of props){p.visible=p.position.z>viewZ-150&&p.position.z<viewZ+65;if(p.position.z>viewZ+80)p.position.z=viewZ-550-Math.random()*80;if(p.position.z<viewZ-700)p.position.z=viewZ+70;p.position.x=roadCenter(p.position.z)+p.userData.roadOffset;}
@@ -233,17 +241,18 @@ function render(now){requestAnimationFrame(render);if(document.hidden||paused||e
  // The storm wall follows the road and churns; it tints the frame as it closes in.
  const sz=active?storm.z:60;stormWall.position.set(roadCenter(sz),0,sz);stormWall.visible=sz-viewZ<90;for(let i=0;i<wallLayers.length;i++)wallLayers[i].material.map.offset.x=now*.00002*(i%2?1:-1.4)+i*.17;
  for(const q of clouds){const t=now*.001+q.ph;q.m.position.set(q.x+Math.sin(t*.4)*3,q.y+Math.sin(t*.7)*1.2,q.z+Math.sin(t*.5)*1.5);q.m.scale.setScalar(q.s*(1+Math.sin(t*.6)*.08));q.m.material.rotation=t*.05;}
- const near=active?clamp(1-(storm.z-c.z-6)/50,0,1):0;scene.fog.density=.0042+near*.004+(c.stormDepth||0)*.02;scene.fog.color.copy(fogBase).lerp(fogStorm,near*.45);scene.background.copy(scene.fog.color);post.uniforms.storm.value=near*.5+(c.stormDepth||0)*.45;document.body.classList.toggle('stormy',near>.55&&playing);
- for(let i=0;i<cars.length;i++){const a=cars[i],m=models[i],sp=Math.hypot(a.vx,a.vz);m.g.position.set(a.x,a.groundHeight-a.sink*.5-a.slow*.2,a.z);m.g.rotation.y=-a.yaw;m.body.rotation.z+=(-a.lateralAccel*.012-m.body.rotation.z)*(1-Math.exp(-dt*8));m.body.rotation.x=a.terrainPitch+Math.sin(now*.012+i)*.012*(sp/20);for(const w of m.wheels){w.pivot.rotation.y=w.front?-a.steer*.4:0;if(playing&&!paused)w.wheel.rotateX(-sp*dt*2);}
+ const near=active?clamp(1-(storm.z-c.z-8)/26,0,1):0;scene.fog.density=.0042+near*.004+(c.stormDepth||0)*.02;scene.fog.color.copy(fogBase).lerp(fogStorm,near*.45);scene.background.copy(scene.fog.color);post.uniforms.storm.value=near*.5+(c.stormDepth||0)*.45;document.body.classList.toggle('stormy',near>.55&&playing);
+ for(let i=0;i<cars.length;i++){const a=cars[i],m=models[i],sp=Math.hypot(a.vx,a.vz);m.g.position.set(a.x,a.groundHeight-a.sink*.5-a.slow*.2,a.z);m.g.rotation.y=-a.yaw;m.body.rotation.z+=(-a.lateralAccel*.012-m.body.rotation.z)*(1-Math.exp(-dt*8));m.body.rotation.x=a.terrainPitch+Math.sin(now*.012+i)*.012*(sp/20);for(const w of m.wheels){w.pivot.rotation.y=w.front?-a.steer*.4:0;if(playing&&!paused)w.wheel.rotateX(-(a.stuck?22:sp)*dt*2);}if(a.stuck&&playing&&!paused&&frame%2===0)puff(a);
   for(let k=0;k<m.slots.length;k++)m.slots[k].position.y=BED[k][1]+Math.max(0,Math.sin(now*.02+k*1.3))*.025*(sp/20);
   if(playing&&!paused&&!a.dead&&!a.finished){if(frame%(fpsCap>30?3:2)===0||Math.abs(a.slip)>.15)puff(a);if(frame%(fpsCap>30?4:3)===0)track(a);}}
  for(const it of loose)if(it.entry){const m=it.entry.m;m.position.set(it.x,0,it.z);m.rotation.y=it.yaw;m.visible=Math.abs(it.z-viewZ)<120;}
  for(const f of fuels)if(f.active&&f.g.visible){f.item.rotation.y=now*.001;f.item.position.y=Math.sin(now*.003+f.z)*.08;}
  for(const p of dust)if(p.life>0&&!paused){p.life-=dt*.7;p.m.position.x+=p.vx*dt;p.m.position.z+=p.vz*dt;p.m.position.y+=dt*.9;p.m.scale.addScalar(dt*2.4);p.m.material.opacity=Math.max(0,p.life*.32);if(p.life<=0)p.m.visible=false;}
  if(debugView)debugView(camera,now);camera.updateMatrixWorld(true);
+ for(let i=1;i<4;i++){const tag=helpTags[i],a=cars[i];if(!(playing&&!watching&&a.stuck&&!a.dead)){tag.hidden=true;continue;}const p=models[i].g.position.clone().add(new T.Vector3(0,3.2,0)).project(camera);tag.hidden=p.z>1;tag.style.left=clamp((p.x*.5+.5)*innerWidth,48,innerWidth-48)+'px';tag.style.top=clamp((-p.y*.5+.5)*innerHeight,128,innerHeight-150)+'px';tag.classList.toggle('urgent',storm.z-a.z<STORM_EDGE+8);}
  if(playing&&!watching){const anchor=models[0].g.position.clone().add(new T.Vector3(0,3.5,0)).project(camera);$('playerTag').hidden=anchor.z>1;$('playerTag').style.left=((anchor.x*.5+.5)*innerWidth)+'px';$('playerTag').style.top=((-anchor.y*.5+.5)*innerHeight)+'px';}else $('playerTag').hidden=true;
  const me=cars[0];if(active&&now-lastHud>=100){lastHud=now;$('fuelMeter').setAttribute('aria-valuenow',String(Math.ceil(me.fuel/me.spec.capacity*100)));$('fuelBar').style.width=(me.fuel/me.spec.capacity*100)+'%';document.body.classList.toggle('lowfuel',me.fuel/me.spec.capacity<.25&&!watching);$('speed').textContent=Math.round(Math.hypot(c.vx,c.vz)*3.6);$('distance').textContent='До оазиса '+(Math.max(0,RACE_LENGTH+c.z)/1000).toFixed(2).replace('.',',')+' км';
-  const gap=Math.max(0,storm.z-c.z);$('stormGap').textContent=c.stormDepth>0?'Буря накрыла':'Буря в '+Math.round(gap)+' м';$('stormBar').style.width=(clamp(1-(gap-STORM_EDGE)/60,0,1)*100)+'%';
+  const gap=Math.max(0,storm.z-c.z);$('stormGap').textContent=c.stormDepth>0?'Буря накрыла':'Буря в '+Math.round(gap)+' м';$('stormBar').style.width=(clamp(1-(gap-STORM_EDGE)/(STORM_MAX_GAP-STORM_EDGE+4),0,1)*100)+'%';
   $('boost').hidden=me.boost<=0||watching;$('boost').textContent='Нитро '+Math.ceil(me.boost)+' с';updateRaceHud();$('sink').style.display=!watching&&me.sink>.15?'block':'none';$('sinkTitle').textContent=me.stormDepth>0?'Уходи от бури':'Не останавливайся';$('sinkBar').style.width=(me.sink/3.8*100)+'%';}
  if(toast>0&&!paused){toast-=dt;if(toast<=0)$('status').textContent='';}
  if(gain){const on=playing&&!paused&&!muted;gain.gain.setTargetAtTime(on&&!watching?.04*volume:0,audio.currentTime,.1);engine.frequency.setTargetAtTime(35+Math.hypot(me.vx,me.vz)*2.5,audio.currentTime,.1);windGain.gain.setTargetAtTime(on?(.02+near*.16)*volume:0,audio.currentTime,.2);}

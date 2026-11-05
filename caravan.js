@@ -1,21 +1,24 @@
-// Caravan rules: cargo in pickup beds, loose cargo on the sand and the sandstorm behind the convoy.
+// Caravan rules: cargo in pickup beds, loose cargo on the sand, partners getting stuck and the sandstorm behind the convoy.
+// The player is the rear guard: pushes stuck partners free, catches dropped cargo, keeps ahead of the storm.
 // Pure logic without Three.js so it can be checked in Node.
-import {clamp} from './physics.js?v=15';
+import {clamp} from './physics.js?v=16';
 
 export const CARGO_SLOTS=8;
+export const PLAYER_START_CARGO=3;  // the rear guard runs light, with room for what the others drop
 export const CARGO_KINDS=['crate','barrel','sack','tires','crate','barrel','sack','crate'];
-export const STORM_START=40;      // metres behind the start line
-export const STORM_MAX_GAP=42;    // the storm never lags further behind the rearmost pickup
+export const STORM_START=24;      // metres behind the start line
+export const STORM_MAX_GAP=30;    // the storm never lags further behind the rearmost pickup
 export const STORM_EDGE=9;        // depth of the dusty front where pickups start to choke
+export const ALLY_PACE=1.07;      // partners run slightly quicker so the player stays at the back
 
-export function loadCargo(c){c.cargo=CARGO_KINDS.slice(0,CARGO_SLOTS);c.delivered=0;c.lostCargo=0;c.stormDepth=0;return c;}
+export function loadCargo(c,count=CARGO_SLOTS){c.cargo=CARGO_KINDS.slice(0,count);c.delivered=0;c.lostCargo=0;c.stormDepth=0;c.stuck=false;c.stuckTime=0;c.rescues=0;c.catches=0;return c;}
 
 // Each item weighs the pickup down a little: an empty bed is about 9% quicker.
-export function loadFactor(c){return 1-(c.cargo?.length??0)*.012;}
+export function loadFactor(c){return (1-(c.cargo?.length??0)*.012)*(c.id?ALLY_PACE:1);}
 
-export function createStorm(){return {z:STORM_START,speed:13.5,swallowed:0};}
+export function createStorm(){return {z:STORM_START,speed:12.5,swallowed:0};}
 
-export function stormSpeed(time){return Math.min(19.6,13.5+time*.075);}
+export function stormSpeed(time){return Math.min(18,12.5+time*.065);}
 
 export function stepStorm(storm,cars,dt,time){
  storm.speed=stormSpeed(time);storm.z-=storm.speed*dt;
@@ -25,8 +28,22 @@ export function stepStorm(storm,cars,dt,time){
   if(c.dead||c.finished){c.stormDepth=0;continue;}
   // 0 ahead of the front edge, 1 deep inside the wall.
   c.stormDepth=clamp((c.z-(storm.z-STORM_EDGE))/STORM_EDGE,0,1);
-  if(c.stormDepth>0){c.sink+=dt*(1.7+1.9*c.stormDepth)*c.stormDepth;c.vx*=Math.exp(-dt*.55*c.stormDepth);c.vz*=Math.exp(-dt*.55*c.stormDepth);if(c.sink>=3.8){c.sink=3.8;c.dead=true;}}
+  if(c.stormDepth>0){c.sink+=dt*(1.7+1.9*c.stormDepth)*c.stormDepth;c.vx*=Math.exp(-dt*.55*c.stormDepth);c.vz*=Math.exp(-dt*.55*c.stormDepth);if(c.sink>=3.8){c.sink=3.8;c.dead=true;c.stuck=false;}}
  }
+}
+
+// A stuck partner spins its wheels in place. It does not sink on its own; only the storm can take it.
+export function stickCar(c){c.stuck=true;c.stuckTime=0;c.boost=0;}
+export function holdStuck(c,dt){if(!c.stuck||c.dead)return;c.stuckTime+=dt;const k=Math.exp(-dt*3.5);c.vx*=k;c.vz*=k;c.yawRate*=k;if(!c.stormDepth)c.sink=Math.min(c.sink,.9);}
+// A bump from behind frees the partner and shoves it forward.
+export function tryRescue(helper,c,relativeSpeed){
+ if(helper.id!==0||!c.stuck||c.dead||helper.dead||relativeSpeed<2.2)return false;
+ c.stuck=false;c.sink=0;c.vz=Math.min(c.vz,-11);helper.rescues++;return true;
+}
+// Partner in view ahead of the player who can get into trouble next.
+export function incidentCandidate(cars,player,rand=Math.random){
+ const pool=cars.filter(c=>c.id&&!c.dead&&!c.finished&&!c.stuck&&c.z<player.z-18&&c.z>player.z-75);
+ return pool.length?pool[Math.floor(rand()*pool.length)]:null;
 }
 
 // Hard hits shake cargo loose. Returns the dropped items.
@@ -48,11 +65,12 @@ export function stepLoose(loose,storm,dt){
  }
 }
 
+// Only the rear guard collects loose cargo; the partners keep their line.
 export function grabCargo(c,it){
- if(c.dead||c.finished||!it.active||c.cargo.length>=CARGO_SLOTS)return false;
+ if(c.id!==0||c.dead||c.finished||!it.active||c.cargo.length>=CARGO_SLOTS)return false;
  if(it.owner===c.id&&it.age<1.2)return false;
- if(Math.hypot((c.x-it.x)/3.4,(c.z-it.z)/3.2)>1)return false;
- it.active=false;c.cargo.push(it.kind);return true;
+ if(Math.hypot((c.x-it.x)/3.6,(c.z-it.z)/3.4)>1)return false;
+ it.active=false;c.cargo.push(it.kind);if(it.owner!==c.id)c.catches++;return true;
 }
 
 // Impact strength in m/s mapped to items shaken loose.

@@ -1,5 +1,5 @@
 import * as T from './three.js';
-import {zombieLayout,hitZombie} from './zombie-physics.js?v=15';
+import {zombieLayout,hitZombie} from './zombie-physics.js?v=16';
 const data=await fetch(new URL('./zombie-model.json',import.meta.url)).then(r=>{if(!r.ok)throw Error('Zombie asset download failed');return r.json();});
 const bytes=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
 const positions=data.frames.map(s=>Float32Array.from(new Int16Array(bytes(s).buffer),v=>v/5000));

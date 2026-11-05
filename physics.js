@@ -1,4 +1,4 @@
-import {obstacleDepth,terrainHeight,roadCenter,ROAD_HALF} from './course.js?v=15';
+import {obstacleDepth,terrainHeight,roadCenter,ROAD_HALF} from './course.js?v=16';
 export const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 export const CAR_TYPES=Object.freeze({
  sedan:Object.freeze({name:'Легковая',maxSpeed:96,capacity:80,drive:12.53,frontGrip:11.4,rearGrip:9.2,yawDamping:1.58,poolDrag:.82,duneDrag:1}),

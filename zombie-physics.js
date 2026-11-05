@@ -1,4 +1,4 @@
-import {roadCenter,RACE_LENGTH} from './course.js?v=15';
+import {roadCenter,RACE_LENGTH} from './course.js?v=16';
 export function zombieLayout(){return Array.from({length:42},(_,i)=>{const z=-85-i*(RACE_LENGTH-180)/41;return {x:roadCenter(z)+Math.sin(i*2.39)*13,z,homeX:roadCenter(z)+Math.sin(i*2.39)*13,phase:i*1.73,hit:false,age:0,vx:0,vz:0};});}
 export function hitZombie(car,z){if(car.dead||car.finished||z.hit)return false;
  const ax=car.prevX??car.x,az=car.prevZ??car.z,dx=car.x-ax,dz=car.z-az,l=dx*dx+dz*dz;
