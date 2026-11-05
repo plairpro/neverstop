@@ -170,19 +170,19 @@ function audioStart(){if(!audio){audio=new(window.AudioContext||window.webkitAud
  for(const [f,q,lvl] of [[380,9,.9],[640,14,.55]]){const bp=audio.createBiquadFilter();bp.type='bandpass';bp.frequency.value=f;bp.Q.value=q;const hg=audio.createGain();hg.gain.value=lvl;wind.connect(bp);bp.connect(hg);hg.connect(windGain);howls.push({bp,hg,f,lvl});}
  windGain.connect(windPan);windPan.connect(audio.destination);wind.start();
  // Cab radio: a narrow speaker band. Static hiss and Geiger-like crackle grow as the storm nears; music will play through it too.
- radioBus=audio.createGain();radioBus.gain.value=0;const hp=audio.createBiquadFilter(),lp=audio.createBiquadFilter(),body=audio.createBiquadFilter();hp.type='highpass';hp.frequency.value=320;lp.type='lowpass';lp.frequency.value=3400;body.type='peaking';body.frequency.value=1500;body.gain.value=5;body.Q.value=.8;
+ radioBus=audio.createGain();radioBus.gain.value=0;const hp=audio.createBiquadFilter(),lp=audio.createBiquadFilter(),body=audio.createBiquadFilter();hp.type='highpass';hp.frequency.value=320;lp.type='lowpass';lp.frequency.value=3000;body.type='peaking';body.frequency.value=1500;body.gain.value=5;body.Q.value=.8;
  radioBus.connect(hp);hp.connect(body);body.connect(lp);lp.connect(audio.destination);
  hiss=audio.createBufferSource();hiss.buffer=b;hiss.loop=true;hissGain=audio.createGain();hissGain.gain.value=0;const hf=audio.createBiquadFilter();hf.type='bandpass';hf.frequency.value=2200;hf.Q.value=.6;hiss.connect(hf);hf.connect(hissGain);hissGain.connect(radioBus);hiss.start();
- musicGain=audio.createGain();musicGain.gain.value=.5;musicGain.connect(radioBus);}audio.resume();}
+ musicGain=audio.createGain();musicGain.gain.value=.3;musicGain.connect(radioBus);}audio.resume();}
 // Louder, higher and closer behind you as the storm approaches; gusts and a slow swirl keep it alive.
 // Radio static: clicks fall at random like a Geiger counter, a few per second far away, a dense rattle up close.
-function crackleUpdate(on,prox,dt){if(!radioBus)return;const at=audio.currentTime;radioBus.gain.setTargetAtTime(on?volume:0,at,.1);hissGain.gain.setTargetAtTime(on?.004+prox**2*.05:0,at,.25);
+function crackleUpdate(on,prox,dt){if(!radioBus)return;const at=audio.currentTime;radioBus.gain.setTargetAtTime(on?volume:0,at,.1);hissGain.gain.setTargetAtTime(on?.004+prox**2*.05:0,at,.25);musicGain.gain.setTargetAtTime(.3*(1-prox*.55),at,.4);
  if(!on)return;const rate=.6+prox**2.2*38;let n=0;const expect=rate*dt;for(let k=0;k<6;k++)if(Math.random()<expect/6)n++;
  for(let k=0;k<n;k++){const t=at+.01+Math.random()*dt,s=noiseSource(),f=audio.createBiquadFilter(),g=audio.createGain(),big=Math.random()<.12+prox*.15,len=big?.02+Math.random()*.03:.002+Math.random()*.006;
   f.type='bandpass';f.frequency.value=1200+Math.random()*2600;f.Q.value=big?1.2:2.5;g.gain.setValueAtTime((big?.22:.12)*(.5+Math.random()*.5)*(.6+prox*.6),t);g.gain.exponentialRampToValueAtTime(.0001,t+len);
   s.connect(f);f.connect(g);g.connect(radioBus);s.start(t,Math.random()*.9);s.stop(t+len+.01);}}
 // Music for the cab radio goes here: file names relative to the game, played quietly through the same speaker band.
-const RADIO_TRACKS=[];let radioTrack=null;
+const RADIO_TRACKS=['audio/radio.mp3'];let radioTrack=null;
 function radioMusic(on){if(!RADIO_TRACKS.length||!musicGain)return;if(!radioTrack){radioTrack=new Audio(RADIO_TRACKS[0]);radioTrack.loop=true;radioTrack.crossOrigin='anonymous';audio.createMediaElementSource(radioTrack).connect(musicGain);}if(on&&radioTrack.paused)radioTrack.play().catch(()=>{});else if(!on&&!radioTrack.paused)radioTrack.pause();}
 function windUpdate(on,prox,t){const at=audio.currentTime,gust=.7+.3*Math.sin(t*2.3)*Math.sin(t*.61)+.1*Math.sin(t*5.7);windGain.gain.setTargetAtTime(on?(.012+prox**1.6*.3)*gust*volume:0,at,.15);
  const r=2+prox*2,swirl=t*(.6+prox*.9);windPan.positionX.setTargetAtTime(Math.sin(swirl)*r,at,.1);windPan.positionZ.setTargetAtTime(1.5+(1-prox)*14+Math.cos(swirl*.7)*1.2,at,.1);
