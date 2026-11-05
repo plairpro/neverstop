@@ -173,7 +173,24 @@ function audioStart(){if(!audio){audio=new(window.AudioContext||window.webkitAud
 function windUpdate(on,prox,t){const at=audio.currentTime,gust=.7+.3*Math.sin(t*2.3)*Math.sin(t*.61)+.1*Math.sin(t*5.7);windGain.gain.setTargetAtTime(on?(.012+prox**1.6*.3)*gust*volume:0,at,.15);
  const r=2+prox*2,swirl=t*(.6+prox*.9);windPan.positionX.setTargetAtTime(Math.sin(swirl)*r,at,.1);windPan.positionZ.setTargetAtTime(1.5+(1-prox)*14+Math.cos(swirl*.7)*1.2,at,.1);
  rumble.frequency.setTargetAtTime(120+prox*160,at,.2);for(const [i,h] of howls.entries()){h.bp.frequency.setTargetAtTime(h.f*(.85+prox*.45)+Math.sin(t*(.9+i*.6)+i)*90+Math.sin(t*2.7+i*2)*35,at,.08);h.hg.gain.setTargetAtTime(h.lvl*(.3+prox*.9)*(.6+.4*Math.sin(t*1.3+i*1.7)),at,.1);}}
-function beep(freq=400,duration=.16){if(!audio||muted)return;const o=audio.createOscillator(),g=audio.createGain();o.type='triangle';o.frequency.setValueAtTime(freq,audio.currentTime);o.frequency.exponentialRampToValueAtTime(freq*.55,audio.currentTime+duration);g.gain.setValueAtTime(.08*volume,audio.currentTime);g.gain.exponentialRampToValueAtTime(.001,audio.currentTime+duration);o.connect(g);g.connect(audio.destination);o.start();o.stop(audio.currentTime+duration);}
+// No beeps: every sound is a physical thud, a hiss or an engine.
+let noiseBuffer=null;function noiseSource(){if(!noiseBuffer){noiseBuffer=audio.createBuffer(1,audio.sampleRate,audio.sampleRate);const d=noiseBuffer.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;}const s=audio.createBufferSource();s.buffer=noiseBuffer;return s;}
+function sfxOk(){return audio&&!muted&&volume>0;}
+function env(node,t,peak,attack,decay){node.gain.setValueAtTime(.0001,t);node.gain.exponentialRampToValueAtTime(peak,t+attack);node.gain.exponentialRampToValueAtTime(.0001,t+attack+decay);}
+function lowThud(t,from,to,peak,decay){const o=audio.createOscillator(),g=audio.createGain();o.type='sine';o.frequency.setValueAtTime(from,t);o.frequency.exponentialRampToValueAtTime(to,t+decay);env(g,t,peak,.008,decay);o.connect(g);g.connect(audio.destination);o.start(t);o.stop(t+decay+.05);}
+function noiseHit(t,type,freq,q,peak,decay,offset=0){const s=noiseSource(),f=audio.createBiquadFilter(),g=audio.createGain();f.type=type;f.frequency.value=freq;f.Q.value=q;env(g,t,peak,.005,decay);s.connect(f);f.connect(g);g.connect(audio.destination);s.start(t,offset);s.stop(t+decay+.05);}
+// Something heavy dropped into a steel van: a dull knock with a hollow metal ring.
+function loadSound(){if(!sfxOk())return;const t=audio.currentTime,v=volume;lowThud(t,110,48,.32*v,.22);noiseHit(t,'lowpass',520,.7,.22*v,.12);noiseHit(t,'bandpass',190,14,.5*v,.45,.3);noiseHit(t+.02,'bandpass',310,18,.22*v,.3,.6);}
+// Bumper against bumper: deep and short.
+function pushSound(){if(!sfxOk())return;const t=audio.currentTime,v=volume;lowThud(t,80,34,.45*v,.28);noiseHit(t,'lowpass',380,.8,.32*v,.18);noiseHit(t,'bandpass',140,8,.25*v,.35,.2);}
+// Nitro valve: a short pressurised hiss.
+function hissSound(){if(!sfxOk())return;const t=audio.currentTime,v=volume;noiseHit(t,'highpass',2400,.6,.12*v,.5);noiseHit(t,'bandpass',900,1.2,.08*v,.35,.4);}
+// Four engines cranking up one after another, revving and settling to idle.
+function startEngines(){if(!sfxOk())return;const t0=audio.currentTime+.05;[52,57,49,61].forEach((base,i)=>{const t=t0+i*.22,o=audio.createOscillator(),o2=audio.createOscillator(),f=audio.createBiquadFilter(),g=audio.createGain();o.type='sawtooth';o2.type='square';f.type='lowpass';f.Q.value=3;
+ for(const osc of[o,o2]){osc.frequency.setValueAtTime(base*.45,t);osc.frequency.exponentialRampToValueAtTime(base*2.6,t+.5);osc.frequency.exponentialRampToValueAtTime(base*1.5,t+1.2);osc.frequency.exponentialRampToValueAtTime(base*1.15,t+2.6);}o2.detune.value=-1200+i*7;
+ f.frequency.setValueAtTime(180,t);f.frequency.exponentialRampToValueAtTime(900,t+.5);f.frequency.exponentialRampToValueAtTime(320,t+2.6);
+ g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.07*volume,t+.12);g.gain.setTargetAtTime(.05*volume,t+.6,.3);g.gain.exponentialRampToValueAtTime(.0001,t+3.2);
+ o.connect(f);o2.connect(f);f.connect(g);g.connect(audio.destination);o.start(t);o2.start(t);o.stop(t+3.3);o2.stop(t+3.3);lowThud(t,60,30,.18*volume,.35);noiseHit(t,'lowpass',300,.7,.08*volume,.6);});}
 function say(s){$('status').textContent=s;toast=2;}
 let lastImpact=-1,impactBuffer;
 function impactSound(strength=8,distance=0){if(!audio||muted||volume===0||audio.currentTime-lastImpact<.09||distance>35)return;lastImpact=audio.currentTime;const t=audio.currentTime,level=clamp(strength/20,.12,1)*volume*.22/(1+distance*.08);if(!impactBuffer){impactBuffer=audio.createBuffer(1,Math.ceil(audio.sampleRate*.22),audio.sampleRate);const samples=impactBuffer.getChannelData(0);for(let i=0;i<samples.length;i++)samples[i]=(Math.random()*2-1)*Math.exp(-i/samples.length*5);}
@@ -188,14 +205,14 @@ function reset(){menuDirty=true;for(const m of models)disposeRaceObject(m.g);for
  cars=START.map(([x,z],i)=>loadCargo(vehicle(i,x,z,'pickup'),i?CARGO_SLOTS:PLAYER_START_CARGO));TOTAL=caravanCargo(cars);cars[0].freeTurn=true;nextStuck=8;nextDrop=4.5;models=cars.map((c,i)=>makeCar(paints[i]));cars.forEach((c,i)=>{c.loadFactor=loadFactor(c);c.cooldown=0;syncCargo(models[i],c);});
  storm=createStorm();const course=createCourse();pits=course.obstacles.map(makeObstacle);fuels=course.supplies.map(makeSupply);finishCount=0;watching=false;trackPositions.fill(0);trackGeo.attributes.position.needsUpdate=true;ti=0;for(const p of dust){p.life=0;p.m.visible=false;}
  time=0;acc=0;ended=false;paused=false;$('modal').hidden=true;$('status').textContent='';$('sink').style.display='none';$('boost').hidden=true;$('playerTag').hidden=true;}
-function start(){reset();playing=true;$('menu').hidden=true;$('footer').hidden=true;$('hud').hidden=false;$('pause').hidden=false;document.body.classList.add('playing');audioStart();clearSteering();}
+function start(){reset();playing=true;audioStart();startEngines();$('menu').hidden=true;$('footer').hidden=true;$('hud').hidden=false;$('pause').hidden=false;document.body.classList.add('playing');audioStart();clearSteering();}
 let rosterMarkup='';function updateRaceHud(){const total=caravanCargo(cars);const value=total+'<span>из '+TOTAL+'</span>';if($('alive').innerHTML!==value)$('alive').innerHTML=value;
  const markup=cars.map(a=>`<div style="opacity:${a.dead?.45:1}"><i style="background:${paints[a.id]}"></i><b>${names[a.id]}</b><span class="${a.stuck?'stuck':''}">${a.dead?'Буря':a.finished?'В оазисе '+a.delivered:a.stuck?'Застрял':a.cargo.length}</span></div>`).join('');if(markup!==rosterMarkup){$('roster').innerHTML=markup;rosterMarkup=markup;}}
 function finish(){updateRaceHud();ended=true;playing=false;watching=false;clearSteering();document.body.classList.remove('stormy');const arrived=cars.filter(c=>c.finished).length,delivered=cars.reduce((n,c)=>n+(c.finished?c.delivered:0),0);
  $('modal').hidden=false;$('resultLabel').hidden=true;$('resultDetail').hidden=false;$('settings').hidden=true;
  $('resultTitle').innerHTML=arrived===0?'Буря забрала<br>караван':arrived===4?'Караван<br>дошёл':'Дошли<br>не все';
  $('resultDetail').innerHTML=`<span>Доехали ${arrived} из 4</span><span>Груз ${delivered} из ${TOTAL}</span><span>Спасено ${cars[0].rescues}</span><span>Поймано ${cars[0].catches}</span>`;
- $('again').textContent='Ещё заезд';$('pause').hidden=true;beep(arrived?640:100,.5);$('again').focus();}
+ $('again').textContent='Ещё заезд';$('pause').hidden=true;$('again').focus();}
 function pause(){if(ended||!playing)return;paused=!paused;if(paused&&gain){gain.gain.setTargetAtTime(0,audio.currentTime,.05);windGain.gain.setTargetAtTime(0,audio.currentTime,.05);}$('modal').hidden=!paused;if(paused){$('resultLabel').hidden=true;$('resultTitle').innerHTML='Переведи<br>дух';$('resultDetail').hidden=true;$('settings').hidden=false;$('settings').open=false;$('again').textContent='Продолжить';$('again').focus();}else{$('pause').focus();}keys.clear();clearSteering();}
 function updateSound(){const enabled=!muted&&volume>0;$('sound').setAttribute('aria-label',enabled?'Выключить звук':'Включить звук');$('sound').setAttribute('aria-pressed',String(enabled));$('sound').classList.toggle('muted',!enabled);}
 $('volume').oninput=e=>{volume=Number(e.target.value)/100;muted=volume===0;updateSound();};
@@ -226,20 +243,20 @@ function lose(c,count){if(count<=0||c.cooldown>0||!c.cargo.length)return;c.coold
 function freeLoose(it){if(it.entry){it.entry.used=false;it.entry.m.visible=false;it.entry=null;}}
 // Trouble ahead for the rear guard: a partner bogs down, or a load works loose.
 function incidents(dt){if(watching||cars[0].dead)return;nextStuck-=dt;nextDrop-=dt;
- if(nextStuck<=0){const c=incidentCandidate(cars,cars[0]);if(c){stickCar(c);say(names[c.id]+' застрял, толкни его');toast=3;beep(300,.3);nextStuck=10+Math.random()*6;}else nextStuck=1.5;}
+ if(nextStuck<=0){const c=incidentCandidate(cars,cars[0]);if(c){stickCar(c);say(names[c.id]+' застрял, толкни его');toast=3;nextStuck=10+Math.random()*6;}else nextStuck=1.5;}
  if(nextDrop<=0){const c=incidentCandidate(cars.filter(o=>o.cargo.length>3),cars[0]);if(c){c.cooldown=0;lose(c,1);say(names[c.id]+' потерял груз, подбери');nextDrop=10+Math.random()*5;}else nextDrop=1.5;}}
 function tick(dt){if(time===0)say('Ты замыкаешь караван, буря позади');time+=dt;for(const c of cars){c.prevX=c.x;c.prevZ=c.z;c.cooldown=Math.max(0,c.cooldown-dt);}const previous=cars.map(c=>c.z);for(const c of cars){const own=!c.id&&!autopilot;step(c,dt,pits,own?control():ai(c),own?throttleInput():0);holdStuck(c,dt);}
  for(let i=0;i<4;i++)for(let j=i+1;j<4;j++){const a=cars[i],b=cars[j],strength=Math.hypot(a.vx-b.vx,a.vz-b.vz);
-  if(Math.hypot(a.x-b.x,a.z-b.z)<2.95&&(a.stuck||b.stuck)){const helper=a.stuck?b:a,stuck=a.stuck?a:b;if(tryRescue(helper,stuck,strength)){collide(a,b);stuck.vz=Math.min(stuck.vz,-11);impactSound(strength*.6,0);if(helper.id===0){say(names[stuck.id]+' снова в пути');beep(820,.22);}continue;}}
+  if(Math.hypot(a.x-b.x,a.z-b.z)<2.95&&(a.stuck||b.stuck)){const helper=a.stuck?b:a,stuck=a.stuck?a:b;if(tryRescue(helper,stuck,strength)){collide(a,b);stuck.vz=Math.min(stuck.vz,-11);if(helper.id===0){pushSound();say(names[stuck.id]+' снова в пути');}continue;}}
   if(collide(a,b)){impactSound(strength,Math.hypot(a.x-cars[0].x,a.z-cars[0].z));const n=a.id&&b.id?0:cargoForImpact(strength);lose(a,n);lose(b,n);}}
  for(const c of cars)for(const solid of solids){const impact=collideSolid(c,solid);if(impact>1){impactSound(impact,Math.hypot(c.x-cars[0].x,c.z-cars[0].z));lose(c,cargoForImpact(impact));}}
 
  {const me=cars[0],sp=Math.hypot(me.vx,me.vz);if(!me.dead&&!me.finished){if(me.duneDepth>.3&&!me.onDune&&sp>8){me.cooldown=0;lose(me,sp>17?2:1);}me.onDune=me.duneDepth>.12;}}
- const lostBefore=cars.map(c=>c.dead);stepStorm(storm,cars,dt,time);cars.forEach((c,i)=>{if(c.dead&&!lostBefore[i]&&i&&!watching){say('Буря забрала '+names[i]);beep(120,.4);}});
+ const lostBefore=cars.map(c=>c.dead);stepStorm(storm,cars,dt,time);cars.forEach((c,i)=>{if(c.dead&&!lostBefore[i]&&i&&!watching){say('Буря забрала '+names[i]);}});
  incidents(dt);stepLoose(loose,storm,dt);for(const it of loose)if(!it.active)freeLoose(it);
  finishCount=finishCrossings(cars,previous,time,dt,finishCount);for(const c of cars)deliver(c);
- for(const c of cars){for(const f of fuels)if(pickup(c,f)){f.g.visible=false;if(c.id===0&&!watching){say(f.kind==='nitro'?'Нитро на 4 секунды':'+5 л');beep(f.kind==='nitro'?980:740,.19);}}
-  for(const it of loose)if(grabCargo(c,it)){c.loadFactor=loadFactor(c);freeLoose(it);if(c.id===0&&!watching){say(it.owner?'Груз '+names[it.owner]+' у тебя':'Груз подобран');beep(560,.16);}}}
+ for(const c of cars){for(const f of fuels)if(pickup(c,f)){f.g.visible=false;if(c.id===0&&!watching){say(f.kind==='nitro'?'Нитро на 4 секунды':'+5 л');f.kind==='nitro'?hissSound():loadSound();}}
+  for(const it of loose)if(grabCargo(c,it)){c.loadFactor=loadFactor(c);freeLoose(it);if(c.id===0&&!watching){say(it.owner?'Груз '+names[it.owner]+' у тебя':'Груз подобран');loadSound();}}}
  loose=loose.filter(it=>it.active);
  for(let i=0;i<4;i++)syncCargo(models[i],cars[i]);
  if(cars.every(c=>c.dead||c.finished)){finish();return;}
