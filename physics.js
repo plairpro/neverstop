@@ -5,11 +5,12 @@ export const CAR_TYPES=Object.freeze({
  pickup:Object.freeze({name:'Пикап',maxSpeed:78,capacity:120,drive:10.18,frontGrip:12.5,rearGrip:12.4,yawDamping:2.3,poolDrag:1,duneDrag:.8})
 });
 export function vehicle(id,x,z,type='sedan'){const spec=CAR_TYPES[type]||CAR_TYPES.sedan;return{id,x,z,type:CAR_TYPES[type]?type:'sedan',spec,vx:0,vz:-16,yaw:0,fuel:spec.capacity,sink:0,dead:false,steer:0,yawRate:0,slip:0,lateralAccel:0,distance:0,hits:0,pickups:0,slow:0,boost:0,groundHeight:0,terrainPitch:0,finished:false,finishPlace:0};}
-export function step(c,dt,pits,input=0){
+// throttle: 0 cruise (automatic gas), +1 floors it, -1 brakes and then reverses.
+export function step(c,dt,pits,input=0,throttle=0){
  if(c.dead||c.finished)return;
  const speed=Math.hypot(c.vx,c.vz);
  const boostActive=c.boost>0;c.boost=Math.max(0,c.boost-dt);
- c.fuel=Math.max(0,c.fuel-dt*1.05);
+ c.fuel=Math.max(0,c.fuel-dt*1.05*(throttle>.05?1.6:1));
  c.steer+=(clamp(input,-1,1)-c.steer)*(1-Math.exp(-dt*9));
  let deep=0,resistance=0,height=0,frontHeight=0,rearHeight=0;
  for(const p of pits){if(Math.abs(p.z-c.z)>p.r+3)continue;const depth=obstacleDepth(p,c.x,c.z);if(!depth)continue;if(p.kind==='pool'){deep=Math.max(deep,depth);resistance=Math.max(resistance,depth*4.2*c.spec.poolDrag);}else{resistance=Math.max(resistance,depth*(p.kind==='dune'?1.1*c.spec.duneDrag:1.8));height=Math.max(height,terrainHeight(p,c.x,c.z));const fx=Math.sin(c.yaw)*1.2,fz=-Math.cos(c.yaw)*1.2;frontHeight=Math.max(frontHeight,terrainHeight(p,c.x+fx,c.z+fz));rearHeight=Math.max(rearHeight,terrainHeight(p,c.x-fx,c.z-fz));}}
@@ -18,6 +19,7 @@ export function step(c,dt,pits,input=0){
  const fx=Math.sin(c.yaw),fz=-Math.cos(c.yaw),rx=Math.cos(c.yaw),rz=Math.sin(c.yaw);
  const forward=c.vx*fx+c.vz*fz,lateral=c.vx*rx+c.vz*rz;
  const steerAngle=c.steer*(.43-.10*clamp(speed/26,0,1));
+ const braking=throttle<-.05&&forward>1.2,reversing=throttle<-.05&&!braking;
  const grip=1-deep*.58-shoulder*.35;
  // Separate axle slip and force saturation: rear traction breaks before the front.
  const frontSlip=Math.atan2(lateral+c.yawRate*1.35,Math.max(3,Math.abs(forward)))-steerAngle;
@@ -25,14 +27,18 @@ export function step(c,dt,pits,input=0){
  const frontForce=-Math.tanh(frontSlip*6.5)*c.spec.frontGrip*grip;
  const rearForce=-Math.tanh(rearSlip*5.8)*c.spec.rearGrip*grip;
  c.yawRate+=((frontForce*1.35-rearForce*1.25)/3.1-c.yawRate*c.spec.yawDamping*(Math.abs(input)<.05?2.2:1))*dt;
- c.yawRate=clamp(c.yawRate,-1.1,1.1);
+ // Reversing uses a plain kinematic turn: the slip model assumes forward travel.
+ if(reversing&&forward<.5){c.yawRate+=(forward*Math.tan(c.steer*.5)/2.8-c.yawRate)*(1-Math.exp(-dt*6));const k=1-Math.exp(-dt*8);c.vx-=rx*lateral*k;c.vz-=rz*lateral*k;}
+ const maxYaw=c.freeTurn?1.1+.7*clamp(1-speed/14,0,1):1.1;c.yawRate=clamp(c.yawRate,-maxYaw,maxYaw);
  c.yaw+=c.yawRate*dt;
- if(Math.abs(c.yaw)>1.12){c.yaw=clamp(c.yaw,-1.12,1.12);if(c.yawRate*c.yaw>0)c.yawRate*=Math.exp(-dt*12);}
+ if(!c.freeTurn&&Math.abs(c.yaw)>1.12){c.yaw=clamp(c.yaw,-1.12,1.12);if(c.yawRate*c.yaw>0)c.yawRate*=Math.exp(-dt*12);}
  const drag=.47+resistance+shoulder*2.8;
- const drive=c.fuel>0?c.spec.drive*(boostActive?1.6:1)*(c.loadFactor??1):0;
+ let drive=c.fuel>0?c.spec.drive*(boostActive?1.6:1)*(c.loadFactor??1)*(throttle>.05?1.15:1):0;
+ if(braking)drive=0;else if(reversing)drive=c.fuel>0&&forward>-9?-c.spec.drive*.9*-throttle:0;
  c.lateralAccel=frontForce+rearForce;
  c.vx+=(fx*drive+rx*c.lateralAccel-c.vx*drag)*dt;
  c.vz+=(fz*drive+rz*c.lateralAccel-c.vz*drag)*dt;
+ if(braking){const v=Math.hypot(c.vx,c.vz),cut=Math.min(v,18*-throttle*dt);if(v>.01){c.vx-=c.vx/v*cut;c.vz-=c.vz/v*cut;}}
  c.slip=Math.atan2(lateral,Math.max(3,Math.abs(forward)));
  c.x+=c.vx*dt;c.z+=c.vz*dt;c.distance+=Math.max(0,-c.vz)*dt;
  const actual=Math.hypot(c.vx,c.vz);

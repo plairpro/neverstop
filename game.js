@@ -1,4 +1,3 @@
-import {makeZombies,resetZombies,stepZombies,renderZombies} from './zombies.js?v=16';
 import {assetCar,assetProp,kitMesh,kitBox,sharedKitMaterials,sharedKitGeometries} from './quaternius.js?v=16';
 import {makeRoute} from './route.js?v=16';
 import {batchStatic} from './render-utils.js?v=16';
@@ -123,7 +122,6 @@ for(let i=0;i<23;i++){const z=-30-i*70,side=i%2?1:-1,x=roadCenter(z)+side*22;let
  if(i%3===1){g=kitProp('lamp',6.6).g;g.children[0].rotation.set(side*.16,side>0?Math.PI:0,0);}
  else{g=new T.Group();strut(g,[0,0,0],[side*.8,4.8,0],.12,steel);strut(g,[side*.8,4.8,0],[side*-1.1,4.55,0],.075,steel);box(g,.55,.16,.3,side*-1.1,4.45,0,burnt);batchStatic(g);}
  g.position.set(x,0,z);scene.add(g);distant.push(g);solids.push({object:g,hx:.3,hz:.3});}
-const zombies=makeZombies(scene);
 
 // Soft dust sprites instead of faceted spheres.
 function softTexture(size=128,lumpy=false){const c=document.createElement('canvas');c.width=c.height=size;const x=c.getContext('2d');const n=lumpy?7:1;for(let i=0;i<n;i++){const cx=size/2+(lumpy?(Math.random()-.5)*size*.35:0),cy=size/2+(lumpy?(Math.random()-.5)*size*.3:0),r=size*(lumpy?.22+Math.random()*.18:.5);const g=x.createRadialGradient(cx,cy,0,cx,cy,r);g.addColorStop(0,'rgba(255,255,255,'+(lumpy?.55:1)+')');g.addColorStop(1,'rgba(255,255,255,0)');x.fillStyle=g;x.fillRect(0,0,size,size);}const t=new T.CanvasTexture(c);t.colorSpace=T.SRGBColorSpace;return t;}
@@ -167,8 +165,8 @@ function disposeRaceObject(g){scene.remove(g);const materials=new Set(),geometri
 
 // Caravan formation: three partners lead, the player is the rear guard.
 const START=[[0,0],[-6,-16],[6,-19],[0,-33]];let TOTAL=0,nextStuck=0,nextDrop=0;
-function reset(){menuDirty=true;resetZombies(zombies);for(const m of models)disposeRaceObject(m.g);for(const p of pits)disposeRaceObject(p.g);for(const f of fuels)disposeRaceObject(f.g);releaseLoose();loose=[];
- cars=START.map(([x,z],i)=>loadCargo(vehicle(i,x,z,'pickup'),i?CARGO_SLOTS:PLAYER_START_CARGO));TOTAL=caravanCargo(cars);nextStuck=8;nextDrop=4.5;models=cars.map((c,i)=>makeCar(paints[i]));cars.forEach((c,i)=>{c.loadFactor=loadFactor(c);c.cooldown=0;syncCargo(models[i],c);});
+function reset(){menuDirty=true;for(const m of models)disposeRaceObject(m.g);for(const p of pits)disposeRaceObject(p.g);for(const f of fuels)disposeRaceObject(f.g);releaseLoose();loose=[];
+ cars=START.map(([x,z],i)=>loadCargo(vehicle(i,x,z,'pickup'),i?CARGO_SLOTS:PLAYER_START_CARGO));TOTAL=caravanCargo(cars);cars[0].freeTurn=true;nextStuck=8;nextDrop=4.5;models=cars.map((c,i)=>makeCar(paints[i]));cars.forEach((c,i)=>{c.loadFactor=loadFactor(c);c.cooldown=0;syncCargo(models[i],c);});
  storm=createStorm();const course=createCourse();pits=course.obstacles.map(makeObstacle);fuels=course.supplies.map(makeSupply);finishCount=0;watching=false;trackPositions.fill(0);trackGeo.attributes.position.needsUpdate=true;ti=0;for(const p of dust){p.life=0;p.m.visible=false;}
  time=0;acc=0;ended=false;paused=false;$('modal').hidden=true;$('status').textContent='';$('sink').style.display='none';$('boost').hidden=true;$('playerTag').hidden=true;}
 function start(){reset();playing=true;$('menu').hidden=true;$('footer').hidden=true;$('hud').hidden=false;$('pause').hidden=false;document.body.classList.add('playing');audioStart();clearSteering();}
@@ -185,13 +183,16 @@ $('volume').oninput=e=>{volume=Number(e.target.value)/100;muted=volume===0;updat
 $('blur').onchange=e=>{post.uniforms.blurAmount.value=e.target.checked?1:0;document.body.classList.toggle('no-blur',!e.target.checked);menuDirty=true;};
 for(const input of document.querySelectorAll('input[name=quality]'))input.addEventListener('change',()=>{quality=input.value;try{localStorage.setItem('neverstop-quality',quality);}catch{}applyQuality();});
 $('start').onclick=start;$('again').onclick=()=>paused?pause():start();$('pause').onclick=pause;$('home').onclick=()=>{playing=false;paused=false;ended=false;$('modal').hidden=true;$('hud').hidden=true;$('pause').hidden=true;$('menu').hidden=false;$('footer').hidden=false;document.body.classList.remove('playing','lowfuel','stormy');reset();};$('sound').onclick=()=>{muted=!muted;if(!muted&&volume===0){volume=.7;$('volume').value=70;}updateSound();};
-function clearSteering(){steeringPointers.clear();touch=0;$('left').classList.remove('held');$('right').classList.remove('held');}
+for(const [id,value] of [['gas',1],['brake',-1]]){const b=$(id);b.addEventListener('pointerdown',e=>{if(!playing||paused||ended)return;e.preventDefault();e.stopPropagation();pedals.set(e.pointerId,value);b.setPointerCapture(e.pointerId);b.classList.add('held');});for(const ev of ['pointerup','pointercancel','lostpointercapture'])b.addEventListener(ev,e=>{pedals.delete(e.pointerId);b.classList.toggle('held',[...pedals.values()].includes(value));});}
+function clearSteering(){steeringPointers.clear();pedals.clear();$('gas').classList.remove('held');$('brake').classList.remove('held');touch=0;$('left').classList.remove('held');$('right').classList.remove('held');}
 function updateSteering(){touch=steeringPointers.size?[...steeringPointers.values()].at(-1):0;$('left').classList.toggle('held',touch<0);$('right').classList.toggle('held',touch>0);}
-document.addEventListener('pointerdown',e=>{if(!playing||paused||ended||e.button!==0)return;const button=e.target.closest('button');if(button&&button.id!=='left'&&button.id!=='right')return;if(e.target.closest('input,summary,details,a'))return;e.preventDefault();const side=button?.id==='left'?-1:button?.id==='right'?1:e.clientX<innerWidth/2?-1:1;steeringPointers.set(e.pointerId,side);document.body.setPointerCapture(e.pointerId);updateSteering();});
+document.addEventListener('pointerdown',e=>{if(!playing||paused||ended||e.button!==0)return;const button=e.target.closest('button');if(button&&button.id!=='left'&&button.id!=='right')return;if(e.target.closest('#pedals'))return;if(e.target.closest('input,summary,details,a'))return;e.preventDefault();const side=button?.id==='left'?-1:button?.id==='right'?1:e.clientX<innerWidth/2?-1:1;steeringPointers.set(e.pointerId,side);document.body.setPointerCapture(e.pointerId);updateSteering();});
 document.addEventListener('pointermove',e=>{if(!steeringPointers.has(e.pointerId))return;steeringPointers.set(e.pointerId,e.clientX<innerWidth/2?-1:1);updateSteering();});
 for(const event of ['pointerup','pointercancel','lostpointercapture'])document.addEventListener(event,e=>{steeringPointers.delete(e.pointerId);updateSteering();});
-addEventListener('keydown',e=>{if(e.target.matches('input,summary'))return;if(['ArrowLeft','ArrowRight','KeyA','KeyD','Space'].includes(e.code))e.preventDefault();keys.add(e.code);if(!e.repeat&&(e.code==='Escape'||e.code==='KeyP'))pause();});
+addEventListener('keydown',e=>{if(e.target.matches('input,summary'))return;if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','KeyA','KeyD','KeyW','KeyS','Space'].includes(e.code))e.preventDefault();keys.add(e.code);if(!e.repeat&&(e.code==='Escape'||e.code==='KeyP'))pause();});
 addEventListener('keyup',e=>keys.delete(e.code));addEventListener('blur',()=>{keys.clear();clearSteering();if(playing&&!paused)pause();});document.addEventListener('visibilitychange',()=>{if(document.hidden&&playing&&!paused)pause();});
+const pedals=new Map();
+function throttleInput(){let v=(keys.has('ArrowUp')||keys.has('KeyW')?1:0)-(keys.has('ArrowDown')||keys.has('KeyS')?1:0);for(const p of pedals.values())v+=p;const gp=navigator.getGamepads?.()[0];if(gp)v+=(gp.buttons[7]?.value||0)-(gp.buttons[6]?.value||0);return clamp(v,-1,1);}
 function control(){let v=touch+(keys.has('ArrowRight')||keys.has('KeyD')?1:0)-(keys.has('ArrowLeft')||keys.has('KeyA')?1:0);const gp=navigator.getGamepads?.()[0];if(gp&&Math.abs(gp.axes[0])>.22)v+=gp.axes[0];return clamp(v,-1,1);}
 // Caravan partners hold a lane, refuel when low and keep clear of other pickups.
 // With ?debug autopilot the player's pickup plays the rear guard: stuck partners first, then loose cargo.
@@ -208,12 +209,12 @@ function freeLoose(it){if(it.entry){it.entry.used=false;it.entry.m.visible=false
 function incidents(dt){if(watching||cars[0].dead)return;nextStuck-=dt;nextDrop-=dt;
  if(nextStuck<=0){const c=incidentCandidate(cars,cars[0]);if(c){stickCar(c);say(names[c.id]+' застрял, толкни его');toast=3;beep(300,.3);nextStuck=10+Math.random()*6;}else nextStuck=1.5;}
  if(nextDrop<=0){const c=incidentCandidate(cars.filter(o=>o.cargo.length>3),cars[0]);if(c){c.cooldown=0;lose(c,1);say(names[c.id]+' потерял груз, подбери');nextDrop=10+Math.random()*5;}else nextDrop=1.5;}}
-function tick(dt){if(time===0)say('Ты замыкаешь караван, буря позади');time+=dt;for(const c of cars){c.prevX=c.x;c.prevZ=c.z;c.cooldown=Math.max(0,c.cooldown-dt);}const previous=cars.map(c=>c.z);for(const c of cars){step(c,dt,pits,c.id||autopilot?ai(c):control());holdStuck(c,dt);}
+function tick(dt){if(time===0)say('Ты замыкаешь караван, буря позади');time+=dt;for(const c of cars){c.prevX=c.x;c.prevZ=c.z;c.cooldown=Math.max(0,c.cooldown-dt);}const previous=cars.map(c=>c.z);for(const c of cars){const own=!c.id&&!autopilot;step(c,dt,pits,own?control():ai(c),own?throttleInput():0);holdStuck(c,dt);}
  for(let i=0;i<4;i++)for(let j=i+1;j<4;j++){const a=cars[i],b=cars[j],strength=Math.hypot(a.vx-b.vx,a.vz-b.vz);
   if(Math.hypot(a.x-b.x,a.z-b.z)<2.95&&(a.stuck||b.stuck)){const helper=a.stuck?b:a,stuck=a.stuck?a:b;if(tryRescue(helper,stuck,strength)){collide(a,b);stuck.vz=Math.min(stuck.vz,-11);impactSound(strength*.6,0);if(helper.id===0){say(names[stuck.id]+' снова в пути');beep(820,.22);}continue;}}
   if(collide(a,b)){impactSound(strength,Math.hypot(a.x-cars[0].x,a.z-cars[0].z));const n=a.id&&b.id?0:cargoForImpact(strength);lose(a,n);lose(b,n);}}
  for(const c of cars)for(const solid of solids){const impact=collideSolid(c,solid);if(impact>1){impactSound(impact,Math.hypot(c.x-cars[0].x,c.z-cars[0].z));lose(c,cargoForImpact(impact));}}
- stepZombies(zombies,cars,dt,time,c=>{impactSound(7,Math.hypot(c.x-cars[0].x,c.z-cars[0].z));if(c.id===0){if(c.cargo.length)lose(c,1);else say('Удар, потеря скорости');}});
+
  const lostBefore=cars.map(c=>c.dead);stepStorm(storm,cars,dt,time);cars.forEach((c,i)=>{if(c.dead&&!lostBefore[i]&&i&&!watching){say('Буря забрала '+names[i]);beep(120,.4);}});
  incidents(dt);stepLoose(loose,storm,dt);for(const it of loose)if(!it.active)freeLoose(it);
  finishCount=finishCrossings(cars,previous,time,dt,finishCount);for(const c of cars)deliver(c);
@@ -226,7 +227,7 @@ function tick(dt){if(time===0)say('Ты замыкаешь караван, бу�
  if(!watching&&(cars[0].dead||cars[0].finished)){watching=true;clearSteering();$('status').textContent=cars[0].finished?'Ты в оазисе, ждём остальных':'Тебя накрыла буря, караван ещё в пути';toast=4;}
 }
 function focusCar(){if(!watching)return cars[0];let f=null;for(const c of cars)if(!c.dead&&!c.finished&&(!f||c.z>f.z))f=c;return f||cars[0];}
-if(location.search.includes('debug'))window.__ns={T,scene,camera,get cars(){return cars},get models(){return models},get storm(){return storm},renderer,post,set view(v){debugView=v},sim(seconds,auto=true){autopilot=auto;for(let t=0;t<seconds*60&&playing;t++)tick(1/60);return {time:+time.toFixed(1),storm:+storm.z.toFixed(0),cars:cars.map(c=>({z:+c.z.toFixed(0),cargo:c.cargo.length,dead:c.dead,fin:c.finished,del:c.delivered,fuel:+c.fuel.toFixed(0),lost:c.lostCargo,stuck:c.stuck,resc:c.rescues,catch:c.catches})),loose:loose.length,swallowed:storm.swallowed}}};let autopilot=false;let debugView=null;
+if(location.search.includes('debug'))window.__ns={T,scene,camera,get cars(){return cars},get models(){return models},get storm(){return storm},renderer,post,set view(v){debugView=v},press(code,on=true){on?keys.add(code):keys.delete(code)},sim(seconds,auto=true){autopilot=auto;for(let t=0;t<seconds*60&&playing;t++)tick(1/60);return {time:+time.toFixed(1),storm:+storm.z.toFixed(0),cars:cars.map(c=>({z:+c.z.toFixed(0),cargo:c.cargo.length,dead:c.dead,fin:c.finished,del:c.delivered,fuel:+c.fuel.toFixed(0),lost:c.lostCargo,stuck:c.stuck,resc:c.rescues,catch:c.catches})),loose:loose.length,swallowed:storm.swallowed}}};let autopilot=false;let debugView=null;
 const helpTags=[null,1,2,3].map(i=>{if(!i)return null;const d=document.createElement('div');d.className='helptag';d.hidden=true;d.textContent='Толкни';$('hud').appendChild(d);return d;});
 let last=performance.now(),lastHud=0,frame=0;applyQuality();reset();camera.position.set(24,35,36);const look=new T.Vector3(),camTarget=new T.Vector3(),fogBase=new T.Color(SKY),fogStorm=new T.Color('#9f774c');
 function render(now){requestAnimationFrame(render);if(document.hidden||paused||ended||(!playing&&!menuDirty)){last=now;return;}const interval=1000/(playing?fpsCap:10);if(now-last<interval-1)return;let dt=Math.min(.1,(now-last)/1000);last=now;frame++;
@@ -237,7 +238,7 @@ function render(now){requestAnimationFrame(render);if(document.hidden||paused||e
  sun.position.set(c.x-40,26,viewZ+22);sun.target.position.set(c.x,0,viewZ-14);fill.position.set(c.x+30,25,viewZ-40);fill.target.position.set(c.x,0,viewZ);
  for(const g of grounds){while(g.position.z>viewZ+220)g.position.z-=720;while(g.position.z<viewZ-500)g.position.z+=720;}
  for(const p of props){p.visible=p.position.z>viewZ-150&&p.position.z<viewZ+65;if(p.position.z>viewZ+80)p.position.z=viewZ-550-Math.random()*80;if(p.position.z<viewZ-700)p.position.z=viewZ+70;p.position.x=roadCenter(p.position.z)+p.userData.roadOffset;}
- renderZombies(zombies,time,viewZ);for(const g of distant)g.visible=Math.abs(g.position.z-viewZ)<120;oasis.visible=Math.abs(oasis.position.z-viewZ)<170;for(const p of pits)p.g.visible=Math.abs(p.z-viewZ)<150;for(const f of fuels)f.g.visible=f.active&&Math.abs(f.z-viewZ)<150;
+ for(const g of distant)g.visible=Math.abs(g.position.z-viewZ)<120;oasis.visible=Math.abs(oasis.position.z-viewZ)<170;for(const p of pits)p.g.visible=Math.abs(p.z-viewZ)<150;for(const f of fuels)f.g.visible=f.active&&Math.abs(f.z-viewZ)<150;
  // The storm wall follows the road and churns; it tints the frame as it closes in.
  const sz=active?storm.z:60;stormWall.position.set(roadCenter(sz),0,sz);stormWall.visible=sz-viewZ<90;for(let i=0;i<wallLayers.length;i++)wallLayers[i].material.map.offset.x=now*.00002*(i%2?1:-1.4)+i*.17;
  for(const q of clouds){const t=now*.001+q.ph;q.m.position.set(q.x+Math.sin(t*.4)*3,q.y+Math.sin(t*.7)*1.2,q.z+Math.sin(t*.5)*1.5);q.m.scale.setScalar(q.s*(1+Math.sin(t*.6)*.08));q.m.material.rotation=t*.05;}
@@ -251,7 +252,7 @@ function render(now){requestAnimationFrame(render);if(document.hidden||paused||e
  if(debugView)debugView(camera,now);camera.updateMatrixWorld(true);
  for(let i=1;i<4;i++){const tag=helpTags[i],a=cars[i];if(!(playing&&!watching&&a.stuck&&!a.dead)){tag.hidden=true;continue;}const p=models[i].g.position.clone().add(new T.Vector3(0,3.2,0)).project(camera);tag.hidden=p.z>1;tag.style.left=clamp((p.x*.5+.5)*innerWidth,48,innerWidth-48)+'px';tag.style.top=clamp((-p.y*.5+.5)*innerHeight,128,innerHeight-150)+'px';tag.classList.toggle('urgent',storm.z-a.z<STORM_EDGE+8);}
  if(playing&&!watching){const anchor=models[0].g.position.clone().add(new T.Vector3(0,3.5,0)).project(camera);$('playerTag').hidden=anchor.z>1;$('playerTag').style.left=((anchor.x*.5+.5)*innerWidth)+'px';$('playerTag').style.top=((-anchor.y*.5+.5)*innerHeight)+'px';}else $('playerTag').hidden=true;
- const me=cars[0];if(active&&now-lastHud>=100){lastHud=now;$('fuelMeter').setAttribute('aria-valuenow',String(Math.ceil(me.fuel/me.spec.capacity*100)));$('fuelBar').style.width=(me.fuel/me.spec.capacity*100)+'%';document.body.classList.toggle('lowfuel',me.fuel/me.spec.capacity<.25&&!watching);$('speed').textContent=Math.round(Math.hypot(c.vx,c.vz)*3.6);$('distance').textContent='До оазиса '+(Math.max(0,RACE_LENGTH+c.z)/1000).toFixed(2).replace('.',',')+' км';
+ const me=cars[0];if(active&&now-lastHud>=100){lastHud=now;$('fuelMeter').setAttribute('aria-valuenow',String(Math.ceil(me.fuel/me.spec.capacity*100)));$('fuelBar').style.width=(me.fuel/me.spec.capacity*100)+'%';document.body.classList.toggle('lowfuel',me.fuel/me.spec.capacity<.25&&!watching);$('speed').textContent=Math.round(Math.hypot(c.vx,c.vz)*3.6);document.body.classList.toggle('reversing',!watching&&(me.vx*Math.sin(me.yaw)-me.vz*Math.cos(me.yaw))<-.5);$('distance').textContent='До оазиса '+(Math.max(0,RACE_LENGTH+c.z)/1000).toFixed(2).replace('.',',')+' км';
   const gap=Math.max(0,storm.z-c.z);$('stormGap').textContent=c.stormDepth>0?'Буря накрыла':'Буря в '+Math.round(gap)+' м';$('stormBar').style.width=(clamp(1-(gap-STORM_EDGE)/(STORM_MAX_GAP-STORM_EDGE+4),0,1)*100)+'%';
   $('boost').hidden=me.boost<=0||watching;$('boost').textContent='Нитро '+Math.ceil(me.boost)+' с';updateRaceHud();$('sink').style.display=!watching&&me.sink>.15?'block':'none';$('sinkTitle').textContent=me.stormDepth>0?'Уходи от бури':'Не останавливайся';$('sinkBar').style.width=(me.sink/3.8*100)+'%';}
  if(toast>0&&!paused){toast-=dt;if(toast<=0)$('status').textContent='';}

@@ -6,8 +6,8 @@ import {clamp} from './physics.js?v=16';
 export const CARGO_SLOTS=8;
 export const PLAYER_START_CARGO=3;  // the rear guard runs light, with room for what the others drop
 export const CARGO_KINDS=['crate','barrel','sack','tires','crate','barrel','sack','crate'];
-export const STORM_START=24;      // metres behind the start line
-export const STORM_MAX_GAP=30;    // the storm never lags further behind the rearmost pickup
+export const STORM_START=30;      // metres behind the start line
+export const STORM_MAX_GAP=50;    // the storm never lags further behind the rearmost pickup
 export const STORM_EDGE=9;        // depth of the dusty front where pickups start to choke
 export const ALLY_PACE=1.07;      // partners run slightly quicker so the player stays at the back
 
@@ -18,11 +18,12 @@ export function loadFactor(c){return (1-(c.cargo?.length??0)*.012)*(c.id?ALLY_PA
 
 export function createStorm(){return {z:STORM_START,speed:12.5,swallowed:0};}
 
-export function stormSpeed(time){return Math.min(18,12.5+time*.065);}
+export function stormSpeed(time){return Math.min(17,12+time*.055);}
 
 export function stepStorm(storm,cars,dt,time){
- storm.speed=stormSpeed(time);storm.z-=storm.speed*dt;
  let rear=-Infinity;for(const c of cars)if(!c.dead&&!c.finished)rear=Math.max(rear,c.z);
+ // The front creeps slower once it is close, leaving room to brake, reverse and grab a crate.
+ const gap=rear>-Infinity?storm.z-rear:99;storm.speed=stormSpeed(time)*(gap<30?.45+.55*Math.max(0,gap)/30:1);storm.z-=storm.speed*dt;
  if(rear>-Infinity)storm.z=Math.min(storm.z,rear+STORM_MAX_GAP);
  for(const c of cars){
   if(c.dead||c.finished){c.stormDepth=0;continue;}
