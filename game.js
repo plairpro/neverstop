@@ -302,7 +302,8 @@ let last=performance.now(),lastHud=0,frame=0;applyQuality();reset();camera.posit
 function render(now){requestAnimationFrame(render);if(document.hidden||paused||ended||(!playing&&!menuDirty)){last=now;return;}const interval=1000/(playing?fpsCap:10);if(now-last<interval-1)return;let dt=Math.min(.1,(now-last)/1000);last=now;frame++;
  if(playing&&!paused){acc+=dt*(watching?2:1);while(acc>=1/60&&playing){tick(1/60);acc-=1/60;}}
  const c=focusCar(),narrow=innerWidth<650,active=playing||ended;const viewZ=active?c.z:0;
- if(active){camTarget.set(c.x,narrow?50:40,viewZ+44);if(camera.position.distanceTo(camTarget)>60)camera.position.copy(camTarget);else camera.position.lerp(camTarget,1-Math.exp(-dt*(watching?2.5:4)));}else camera.position.set(26+Math.sin(now*.00006)*4,30,29);
+ if(active){camTarget.set(c.x,narrow?50:40,viewZ+44);// Locked to the pickup while you drive; only the spectator view glides between partners.
+ if(!watching||camera.position.distanceTo(camTarget)>60)camera.position.copy(camTarget);else camera.position.lerp(camTarget,1-Math.exp(-dt*2.5));}else camera.position.set(26+Math.sin(now*.00006)*4,30,29);
  look.set(active?c.x:3,0,viewZ-(narrow?8:5));camera.lookAt(look);
  sun.position.set(c.x-40,26,viewZ+22);sun.target.position.set(c.x,0,viewZ-14);fill.position.set(c.x+30,25,viewZ-40);fill.target.position.set(c.x,0,viewZ);
  updateGround(c.x,viewZ-110);
