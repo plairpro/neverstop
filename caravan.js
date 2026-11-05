@@ -8,10 +8,10 @@ export const PLAYER_START_CARGO=3;  // the rear guard runs light, with room for 
 export const CARGO_KINDS=['crate','barrel','sack','tires','crate','barrel','sack','crate'];
 export const STORM_START=30;      // metres behind the start line
 export const STORM_MAX_GAP=50;    // the storm never lags further behind the rearmost pickup
-export const STORM_EDGE=9;        // depth of the dusty front where pickups start to choke
+export const STORM_EDGE=14;       // depth of the dusty front where pickups start to choke
 export const ALLY_PACE=1.07;      // partners run slightly quicker so the player stays at the back
 
-export function loadCargo(c,count=CARGO_SLOTS){c.cargo=CARGO_KINDS.slice(0,count);c.delivered=0;c.lostCargo=0;c.stormDepth=0;c.stuck=false;c.stuckTime=0;c.rescues=0;c.catches=0;return c;}
+export function loadCargo(c,count=CARGO_SLOTS){c.cargo=CARGO_KINDS.slice(0,count);c.delivered=0;c.lostCargo=0;c.stormDepth=0;c.cover=0;c.stuck=false;c.stuckTime=0;c.rescues=0;c.catches=0;return c;}
 
 // Each item weighs the pickup down a little: an empty bed is about 9% quicker.
 export function loadFactor(c){return (1-(c.cargo?.length??0)*.012)*(c.id?ALLY_PACE:1);}
@@ -23,13 +23,16 @@ export function stormSpeed(time){return Math.min(17,12+time*.055);}
 export function stepStorm(storm,cars,dt,time){
  let rear=-Infinity;for(const c of cars)if(!c.dead&&!c.finished)rear=Math.max(rear,c.z);
  // The front creeps slower once it is close, leaving room to brake, reverse and grab a crate.
- const gap=rear>-Infinity?storm.z-rear:99;storm.speed=stormSpeed(time)*(gap<30?.45+.55*Math.max(0,gap)/30:1);storm.z-=storm.speed*dt;
+ const gap=rear>-Infinity?storm.z-rear:99;storm.speed=stormSpeed(time)*(gap<0?.3:gap<30?.45+.55*gap/30:1);storm.z-=storm.speed*dt;
  if(rear>-Infinity)storm.z=Math.min(storm.z,rear+STORM_MAX_GAP);
  for(const c of cars){
   if(c.dead||c.finished){c.stormDepth=0;continue;}
   // 0 ahead of the front edge, 1 deep inside the wall.
   c.stormDepth=clamp((c.z-(storm.z-STORM_EDGE))/STORM_EDGE,0,1);
-  if(c.stormDepth>0){c.sink+=dt*(1.7+1.9*c.stormDepth)*c.stormDepth;c.vx*=Math.exp(-dt*.55*c.stormDepth);c.vz*=Math.exp(-dt*.55*c.stormDepth);if(c.sink>=3.8){c.sink=3.8;c.dead=true;c.stuck=false;}}
+  // Inside the wall dust builds up gradually; drive out and it clears. Fully covered means lost.
+  if(c.stormDepth>0){c.cover=Math.min(1,c.cover+dt*(.05+.1*c.stormDepth));const k=Math.exp(-dt*.12*c.stormDepth);c.vx*=k;c.vz*=k;}
+  else c.cover=Math.max(0,c.cover-dt*.35);
+  if(c.cover>=1){c.dead=true;c.stuck=false;}
  }
 }
 

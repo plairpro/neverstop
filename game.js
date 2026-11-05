@@ -102,15 +102,26 @@ const ringMat=new T.MeshBasicMaterial({color:0xffe2a0,transparent:true,opacity:.
 const loosePool=[];function looseMesh(kind){let entry=loosePool.find(e=>!e.used&&e.kind===kind);if(!entry){entry={kind,m:cargoMesh(kind),used:false};const ring=new T.Mesh(zoneGeo,ringMat);ring.scale.set(2.4,1,2.4);ring.position.y=.03;entry.m.add(ring);const beam=new T.Mesh(beamGeo,beamMat);beam.position.y=2.6;entry.m.add(beam);scene.add(entry.m);loosePool.push(entry);}entry.used=true;entry.m.visible=true;return entry;}
 function releaseLoose(){for(const e of loosePool){e.used=false;e.m.visible=false;}}
 
-// Oasis settlement at the finish: stacked containers, a water tower, a pond and palms.
-const oasis=new T.Group();{const steelBeam=mat('#3f3b33',.6,.5),cloth=mat('#8d4d2c',.95),light=mat('#d3c4a4'),dark=mat('#35382f');
- for(const side of[-1,1]){const a=kitProp('containerRed',6.2,{by:'x'}),b=kitProp('containerGreen',6.2,{by:'x'});a.g.position.set(side*25,0,0);a.g.rotation.y=Math.PI/2;b.g.position.set(side*25,a.h-.02,0);b.g.rotation.y=Math.PI/2+.08*side;oasis.add(a.g,b.g);}
- box(oasis,52,.35,.35,0,5.6,0,steelBeam);for(let i=0;i<9;i++){const w=box(oasis,3.4,2.2,.05,-20+i*5,4.3,0,i%2?cloth:tarpMat);w.rotation.z=(i%3-1)*.04;}
- const tower=assetProp('tower'),tb=new T.Box3().setFromObject(tower),k=11/tb.getSize(new T.Vector3()).y;tower.scale.setScalar(k);tower.position.set(34,-tb.min.y*k,-14);oasis.add(tower);
- const pond=new T.Mesh(new T.CircleGeometry(9,32),new T.MeshStandardMaterial({color:'#3e6b66',roughness:.15,metalness:.2}));pond.rotation.x=-Math.PI/2;pond.scale.set(1.6,.8,1);pond.position.set(-30,.05,-24);oasis.add(pond);
- const trunk=mat('#7a5e3c'),frond=mat('#5f7a3e');for(let i=0;i<7;i++){const x=-44+i*6+Math.sin(i)*3,z=-16-(i%3)*7,h=5+i%3*1.4;strut(oasis,[x,0,z],[x+.8,h,z+.4],.18,trunk);for(let j=0;j<6;j++){const a=j/6*Math.PI*2,leaf=box(oasis,3,.08,.6,x+.8+Math.cos(a)*1.3,h-.3,z+.4+Math.sin(a)*1.3,frond);leaf.rotation.set(0,-a,-.35);}}
- for(let i=0;i<24;i++)box(oasis,46/24,.025,1.1,-23+(i+.5)*46/24,.025,0,i%2?light:dark);
- const sign=kitProp('sign',5.3);sign.g.position.set(-31,0,10);sign.g.rotation.y=Math.PI/2;oasis.add(sign.g);
+// Oasis settlement at the finish: adobe houses around a wide shed roof the caravan parks under.
+const oasis=new T.Group();{const post=mat('#4a4237',.7,.4),sheetA=mat('#8a5a3a',.85,.35),sheetB=mat('#6f6b5e',.75,.45),adobe=[mat('#c9a77f'),mat('#b88f66'),mat('#d4b994')],trim=mat('#7d6046'),hole=mat('#2e2a24'),awning=mat('#8d4d2c',.95);
+ // Shed roof over the finish: steel posts, cross beams and rippled sheet panels. Pickups stop beneath it.
+ // Posts only at the sides so the whole road stays open underneath.
+ for(const x of[-21.5,21.5])for(const z of[5,-1,-7]){strut(oasis,[x,0,z],[x,5.4,z],.2,post);strut(oasis,[x,4.2,z],[x*.86,5.4,z],.08,post);}
+ for(const z of[5,-7])box(oasis,43,.3,.3,0,5.4,z,post);for(const x of[-21,0,21])box(oasis,.3,.3,12.4,x,5.55,-1,post);
+ for(let i=0;i<11;i++){const s=box(oasis,4.1,.08,13.6,-20.5+i*4.1,5.75+(i%2)*.05,-1,i%3===1?sheetB:sheetA);s.rotation.z=(i%2?.03:-.03);s.rotation.x=.05;}
+ // Houses: flat-roofed adobe boxes with parapets, dark doorways, small windows and the odd awning.
+ function house(x,z,w,d,h,turn,k){const g=new T.Group(),m=adobe[k%3];box(g,w,h,d,0,h/2,0,m);box(g,w+.2,.35,d+.2,0,h+.17,0,trim);box(g,1.1,2,.1,-w*.2,1,d/2+.03,hole);
+  for(const wx of[w*.18,w*.38])if(wx+.5<w/2)box(g,.7,.6,.1,wx,h*.62,d/2+.03,hole);box(g,.1,.6,.7,w/2+.03,h*.62,0,hole);
+  if(k%2===0){const a=box(g,w*.55,.06,1.6,w*.12,2.45,d/2+.8,awning);a.rotation.x=-.18;strut(g,[w*.12-w*.25,0,d/2+1.5],[w*.12-w*.25,2.35,d/2+1.5],.05,post);strut(g,[w*.12+w*.25,0,d/2+1.5],[w*.12+w*.25,2.35,d/2+1.5],.05,post);}
+  if(k%3===1){const t=assetProp('barrel');t.scale.setScalar(.75);t.position.set(w*.3,h+.34,-d*.2);g.add(t);}
+  g.position.set(x,0,z);g.rotation.y=turn;batchStatic(g);oasis.add(g);}
+ const homes=[[-30,2,8,6,3.6,Math.PI/2],[-31,-12,7,7,4.2,Math.PI/2],[-28,-26,9,6,3.4,Math.PI/2.2],[30,-2,7,6,3.8,-Math.PI/2],[33,-16,8,7,3.2,-Math.PI/2],[29,-30,6,6,4.4,-Math.PI/2.3],[-12,-30,8,6,3.5,0],[6,-34,9,7,4,0.1],[-40,-6,6,5,3,Math.PI/2],[42,-24,7,5,3.4,-Math.PI/2]];
+ homes.forEach((h,i)=>house(...h,i));
+ const shack=kitProp('containerGreen',6,{by:'x'});shack.g.position.set(19,0,-24);shack.g.rotation.y=.2;oasis.add(shack.g);
+ const tower=assetProp('tower'),tb=new T.Box3().setFromObject(tower),k=11/tb.getSize(new T.Vector3()).y;tower.scale.setScalar(k);tower.position.set(38,-tb.min.y*k,8);oasis.add(tower);
+ const pond=new T.Mesh(new T.CircleGeometry(7,32),new T.MeshStandardMaterial({color:'#3e6b66',roughness:.15,metalness:.2}));pond.rotation.x=-Math.PI/2;pond.scale.set(1.5,.8,1);pond.position.set(-14,.05,-44);oasis.add(pond);
+ const trunk=mat('#7a5e3c'),frond=mat('#5f7a3e');for(let i=0;i<6;i++){const x=-26+i*5+Math.sin(i)*2,z=-40-(i%3)*5,h=5+i%3*1.4;strut(oasis,[x,0,z],[x+.8,h,z+.4],.18,trunk);for(let j=0;j<6;j++){const a=j/6*Math.PI*2,leaf=box(oasis,3,.08,.6,x+.8+Math.cos(a)*1.3,h-.3,z+.4+Math.sin(a)*1.3,frond);leaf.rotation.set(0,-a,-.35);}}
+ for(let i=0;i<6;i++){const p=kitProp('barrier2',1.2,{by:'x'});p.g.position.set((i<3?-1:1)*(23.5+i%3*.3),0,16-i%3*1.6);p.g.rotation.y=Math.PI/2;oasis.add(p.g);}
  oasis.position.set(roadCenter(-RACE_LENGTH),0,-RACE_LENGTH);scene.add(oasis);}
 
 // Broken walls and poles mark the outside of bends.
@@ -132,7 +143,7 @@ function puff(c){const p=dust[dustIndex++%(quality==='high'?36:18)];p.life=1;p.m
 const stormWall=new T.Group();scene.add(stormWall);
 const wallCanvas=document.createElement('canvas');wallCanvas.width=256;wallCanvas.height=128;{const w=wallCanvas.getContext('2d');const gr=w.createLinearGradient(0,0,0,128);gr.addColorStop(0,'rgba(255,255,255,0)');gr.addColorStop(.35,'rgba(255,255,255,.75)');gr.addColorStop(1,'rgba(255,255,255,1)');w.fillStyle=gr;w.fillRect(0,0,256,128);w.globalCompositeOperation='destination-out';for(let i=0;i<70;i++){const x=Math.random()*256,y=Math.random()*70,r=8+Math.random()*24,g=w.createRadialGradient(x,y,0,x,y,r);g.addColorStop(0,'rgba(0,0,0,.6)');g.addColorStop(1,'rgba(0,0,0,0)');w.fillStyle=g;w.fillRect(x-r,y-r,r*2,r*2);}}
 const wallTex=new T.CanvasTexture(wallCanvas);wallTex.wrapS=T.RepeatWrapping;wallTex.colorSpace=T.SRGBColorSpace;
-const wallLayers=[];for(let i=0;i<6;i++){const t=wallTex.clone();t.wrapS=T.RepeatWrapping;t.repeat.set(2.5,1);const m=new T.Mesh(new T.PlaneGeometry(240,18),new T.MeshBasicMaterial({map:t,color:i<2?0x9a6a3c:0x6f4a29,transparent:true,opacity:.6+i*.07,depthWrite:false,fog:false}));m.position.set(0,8.5,i*5);stormWall.add(m);wallLayers.push(m);}
+const wallLayers=[];for(let i=0;i<6;i++){const t=wallTex.clone();t.wrapS=T.RepeatWrapping;t.repeat.set(2.5,1);const m=new T.Mesh(new T.PlaneGeometry(240,18),new T.MeshBasicMaterial({map:t,color:i<2?0x9a6a3c:0x6f4a29,transparent:true,opacity:.6+i*.07,depthWrite:false,fog:false}));m.position.set(0,8.5,i*5);m.userData.base=m.material.opacity;stormWall.add(m);wallLayers.push(m);}
 const clouds=[];for(let i=0;i<40;i++){const m=new T.Sprite(new T.SpriteMaterial({map:cloudTex,color:i%3?0x8f6036:0x6e4626,transparent:true,opacity:.95,depthWrite:false,fog:false}));stormWall.add(m);clouds.push({m,x:(i/40-.5)*120,y:.8+Math.random()*4,z:-STORM_EDGE*.7+Math.random()*9,s:6+Math.random()*7,ph:Math.random()*6});}
 
 // Single draw call for all tyre marks.
@@ -150,10 +161,18 @@ let fpsCap=60;
 function applyQuality(){const high=quality==='high';fpsCap=high?60:30;const size=high?2048:1024;if(sun.shadow.mapSize.x!==size){sun.shadow.mapSize.set(size,size);sun.shadow.map?.dispose();sun.shadow.map=null;}if(renderer.isWebGLRenderer){rt?.dispose();rt=new T.WebGLRenderTarget(1,1,{samples:high?4:0,type:T.HalfFloatType});post.uniforms.map.value=rt.texture;}for(const d of dust.slice(high?36:18)){d.life=0;d.m.visible=false;}resize();for(const input of document.querySelectorAll('input[name=quality]'))input.checked=input.value===quality;}
 var menuDirty=true;function resize(){menuDirty=true;const w=innerWidth,h=innerHeight;const ratio=quality==='high'?Math.min(devicePixelRatio,1.5,Math.sqrt(2.4e6/(w*h))):Math.min(1,1280/w,900/h);renderer.setPixelRatio(ratio);renderer.setSize(w,h);if(rt){rt.setSize(Math.round(w*ratio),Math.round(h*ratio));post.uniforms.res.value.set(rt.width,rt.height);}camera.aspect=w/h;camera.updateProjectionMatrix();}addEventListener('resize',resize);
 
-let audio,engine,gain,filter,wind,windGain;
+let audio,engine,gain,filter,wind,windGain,windPan,rumble,howls=[];
 function audioStart(){if(!audio){audio=new(window.AudioContext||window.webkitAudioContext)();engine=audio.createOscillator();engine.type='sawtooth';gain=audio.createGain();filter=audio.createBiquadFilter();filter.type='lowpass';filter.frequency.value=220;engine.connect(filter);filter.connect(gain);gain.connect(audio.destination);engine.start();
- // Brown-noise wind grows as the storm closes in.
- wind=audio.createBufferSource();const b=audio.createBuffer(1,audio.sampleRate*2,audio.sampleRate),s=b.getChannelData(0);let last=0;for(let i=0;i<s.length;i++){last=last*.97+(Math.random()*2-1)*.03;s[i]=last*3;}wind.buffer=b;wind.loop=true;windGain=audio.createGain();windGain.gain.value=0;wind.connect(windGain);windGain.connect(audio.destination);wind.start();}audio.resume();}
+ // Storm wind: a low rumble plus two whistling bands, placed behind the listener and swirling around.
+ wind=audio.createBufferSource();const b=audio.createBuffer(1,audio.sampleRate*3,audio.sampleRate),s=b.getChannelData(0);for(let i=0;i<s.length;i++)s[i]=Math.random()*2-1;wind.buffer=b;wind.loop=true;
+ windGain=audio.createGain();windGain.gain.value=0;windPan=audio.createPanner();Object.assign(windPan,{panningModel:'HRTF',distanceModel:'inverse',refDistance:60,rolloffFactor:.2});windPan.positionZ.value=8;
+ rumble=audio.createBiquadFilter();rumble.type='lowpass';rumble.frequency.value=160;const rg=audio.createGain();rg.gain.value=1.6;wind.connect(rumble);rumble.connect(rg);rg.connect(windGain);
+ for(const [f,q,lvl] of [[380,9,.9],[640,14,.55]]){const bp=audio.createBiquadFilter();bp.type='bandpass';bp.frequency.value=f;bp.Q.value=q;const hg=audio.createGain();hg.gain.value=lvl;wind.connect(bp);bp.connect(hg);hg.connect(windGain);howls.push({bp,hg,f,lvl});}
+ windGain.connect(windPan);windPan.connect(audio.destination);wind.start();}audio.resume();}
+// Louder, higher and closer behind you as the storm approaches; gusts and a slow swirl keep it alive.
+function windUpdate(on,prox,t){const at=audio.currentTime,gust=.7+.3*Math.sin(t*2.3)*Math.sin(t*.61)+.1*Math.sin(t*5.7);windGain.gain.setTargetAtTime(on?(.012+prox**1.6*.3)*gust*volume:0,at,.15);
+ const r=2+prox*2,swirl=t*(.6+prox*.9);windPan.positionX.setTargetAtTime(Math.sin(swirl)*r,at,.1);windPan.positionZ.setTargetAtTime(1.5+(1-prox)*14+Math.cos(swirl*.7)*1.2,at,.1);
+ rumble.frequency.setTargetAtTime(120+prox*160,at,.2);for(const [i,h] of howls.entries()){h.bp.frequency.setTargetAtTime(h.f*(.85+prox*.45)+Math.sin(t*(.9+i*.6)+i)*90+Math.sin(t*2.7+i*2)*35,at,.08);h.hg.gain.setTargetAtTime(h.lvl*(.3+prox*.9)*(.6+.4*Math.sin(t*1.3+i*1.7)),at,.1);}}
 function beep(freq=400,duration=.16){if(!audio||muted)return;const o=audio.createOscillator(),g=audio.createGain();o.type='triangle';o.frequency.setValueAtTime(freq,audio.currentTime);o.frequency.exponentialRampToValueAtTime(freq*.55,audio.currentTime+duration);g.gain.setValueAtTime(.08*volume,audio.currentTime);g.gain.exponentialRampToValueAtTime(.001,audio.currentTime+duration);o.connect(g);g.connect(audio.destination);o.start();o.stop(audio.currentTime+duration);}
 function say(s){$('status').textContent=s;toast=2;}
 let lastImpact=-1,impactBuffer;
@@ -215,6 +234,7 @@ function tick(dt){if(time===0)say('Ты замыкаешь караван, бу�
   if(collide(a,b)){impactSound(strength,Math.hypot(a.x-cars[0].x,a.z-cars[0].z));const n=a.id&&b.id?0:cargoForImpact(strength);lose(a,n);lose(b,n);}}
  for(const c of cars)for(const solid of solids){const impact=collideSolid(c,solid);if(impact>1){impactSound(impact,Math.hypot(c.x-cars[0].x,c.z-cars[0].z));lose(c,cargoForImpact(impact));}}
 
+ {const me=cars[0],sp=Math.hypot(me.vx,me.vz);if(!me.dead&&!me.finished){if(me.duneDepth>.3&&!me.onDune&&sp>8){me.cooldown=0;lose(me,sp>17?2:1);}me.onDune=me.duneDepth>.12;}}
  const lostBefore=cars.map(c=>c.dead);stepStorm(storm,cars,dt,time);cars.forEach((c,i)=>{if(c.dead&&!lostBefore[i]&&i&&!watching){say('Буря забрала '+names[i]);beep(120,.4);}});
  incidents(dt);stepLoose(loose,storm,dt);for(const it of loose)if(!it.active)freeLoose(it);
  finishCount=finishCrossings(cars,previous,time,dt,finishCount);for(const c of cars)deliver(c);
@@ -240,9 +260,9 @@ function render(now){requestAnimationFrame(render);if(document.hidden||paused||e
  for(const p of props){p.visible=p.position.z>viewZ-150&&p.position.z<viewZ+65;if(p.position.z>viewZ+80)p.position.z=viewZ-550-Math.random()*80;if(p.position.z<viewZ-700)p.position.z=viewZ+70;p.position.x=roadCenter(p.position.z)+p.userData.roadOffset;}
  for(const g of distant)g.visible=Math.abs(g.position.z-viewZ)<120;oasis.visible=Math.abs(oasis.position.z-viewZ)<170;for(const p of pits)p.g.visible=Math.abs(p.z-viewZ)<150;for(const f of fuels)f.g.visible=f.active&&Math.abs(f.z-viewZ)<150;
  // The storm wall follows the road and churns; it tints the frame as it closes in.
- const sz=active?storm.z:60;stormWall.position.set(roadCenter(sz),0,sz);stormWall.visible=sz-viewZ<90;for(let i=0;i<wallLayers.length;i++)wallLayers[i].material.map.offset.x=now*.00002*(i%2?1:-1.4)+i*.17;
+ const sz=active?storm.z:60;stormWall.position.set(roadCenter(sz),0,sz);stormWall.visible=sz-viewZ<90;const outside=active?clamp((storm.z-c.z+2)/10,0,1):1;for(let i=0;i<wallLayers.length;i++){const w=wallLayers[i];w.material.map.offset.x=now*.00002*(i%2?1:-1.4)+i*.17;w.material.opacity=w.userData.base*outside;w.visible=outside>.01;}
  for(const q of clouds){const t=now*.001+q.ph;q.m.position.set(q.x+Math.sin(t*.4)*3,q.y+Math.sin(t*.7)*1.2,q.z+Math.sin(t*.5)*1.5);q.m.scale.setScalar(q.s*(1+Math.sin(t*.6)*.08));q.m.material.rotation=t*.05;}
- const near=active?clamp(1-(storm.z-c.z-8)/26,0,1):0;scene.fog.density=.0042+near*.004+(c.stormDepth||0)*.02;scene.fog.color.copy(fogBase).lerp(fogStorm,near*.45);scene.background.copy(scene.fog.color);post.uniforms.storm.value=near*.5+(c.stormDepth||0)*.45;document.body.classList.toggle('stormy',near>.55&&playing);
+ const near=active?clamp(1-(storm.z-c.z-8)/26,0,1):0;scene.fog.density=.0042+near*.004+(watching?0:cars[0].cover||0)*.012;scene.fog.color.copy(fogBase).lerp(fogStorm,near*.45);scene.background.copy(scene.fog.color);const veil=watching?0:cars[0].cover||0;post.uniforms.storm.value=near*.5+(c.stormDepth||0)*.3+veil*.5;$('dustveil').style.opacity=(veil**1.3).toFixed(3);document.body.classList.toggle('stormy',near>.55&&playing);
  for(let i=0;i<cars.length;i++){const a=cars[i],m=models[i],sp=Math.hypot(a.vx,a.vz);m.g.position.set(a.x,a.groundHeight-a.sink*.5-a.slow*.2,a.z);m.g.rotation.y=-a.yaw;m.body.rotation.z+=(-a.lateralAccel*.012-m.body.rotation.z)*(1-Math.exp(-dt*8));m.body.rotation.x=a.terrainPitch+Math.sin(now*.012+i)*.012*(sp/20);for(const w of m.wheels){w.pivot.rotation.y=w.front?-a.steer*.4:0;if(playing&&!paused)w.wheel.rotateX(-(a.stuck?22:sp)*dt*2);}if(a.stuck&&playing&&!paused&&frame%2===0)puff(a);
   for(let k=0;k<m.slots.length;k++)m.slots[k].position.y=BED[k][1]+Math.max(0,Math.sin(now*.02+k*1.3))*.025*(sp/20);
   if(playing&&!paused&&!a.dead&&!a.finished){if(frame%(fpsCap>30?3:2)===0||Math.abs(a.slip)>.15)puff(a);if(frame%(fpsCap>30?4:3)===0)track(a);}}
@@ -254,9 +274,9 @@ function render(now){requestAnimationFrame(render);if(document.hidden||paused||e
  if(playing&&!watching){const anchor=models[0].g.position.clone().add(new T.Vector3(0,3.5,0)).project(camera);$('playerTag').hidden=anchor.z>1;$('playerTag').style.left=((anchor.x*.5+.5)*innerWidth)+'px';$('playerTag').style.top=((-anchor.y*.5+.5)*innerHeight)+'px';}else $('playerTag').hidden=true;
  const me=cars[0];if(active&&now-lastHud>=100){lastHud=now;$('fuelMeter').setAttribute('aria-valuenow',String(Math.ceil(me.fuel/me.spec.capacity*100)));$('fuelBar').style.width=(me.fuel/me.spec.capacity*100)+'%';document.body.classList.toggle('lowfuel',me.fuel/me.spec.capacity<.25&&!watching);$('speed').textContent=Math.round(Math.hypot(c.vx,c.vz)*3.6);document.body.classList.toggle('reversing',!watching&&(me.vx*Math.sin(me.yaw)-me.vz*Math.cos(me.yaw))<-.5);$('distance').textContent='До оазиса '+(Math.max(0,RACE_LENGTH+c.z)/1000).toFixed(2).replace('.',',')+' км';
   const gap=Math.max(0,storm.z-c.z);$('stormGap').textContent=c.stormDepth>0?'Буря накрыла':'Буря в '+Math.round(gap)+' м';$('stormBar').style.width=(clamp(1-(gap-STORM_EDGE)/(STORM_MAX_GAP-STORM_EDGE+4),0,1)*100)+'%';
-  $('boost').hidden=me.boost<=0||watching;$('boost').textContent='Нитро '+Math.ceil(me.boost)+' с';updateRaceHud();$('sink').style.display=!watching&&me.sink>.15?'block':'none';$('sinkTitle').textContent=me.stormDepth>0?'Уходи от бури':'Не останавливайся';$('sinkBar').style.width=(me.sink/3.8*100)+'%';}
+  $('boost').hidden=me.boost<=0||watching;$('boost').textContent='Нитро '+Math.ceil(me.boost)+' с';updateRaceHud();const cover=me.cover||0;$('sink').style.display=!watching&&(me.sink>.15||cover>.02)?'block':'none';$('sinkTitle').textContent=cover>.02?'Выбирайся из бури':'Не останавливайся';$('sinkNote').textContent=cover>.02?'Буря затягивает':'Песок затягивает';$('sinkBar').style.width=(Math.max(me.sink/3.8,cover)*100)+'%';}
  if(toast>0&&!paused){toast-=dt;if(toast<=0)$('status').textContent='';}
- if(gain){const on=playing&&!paused&&!muted;gain.gain.setTargetAtTime(on&&!watching?.04*volume:0,audio.currentTime,.1);engine.frequency.setTargetAtTime(35+Math.hypot(me.vx,me.vz)*2.5,audio.currentTime,.1);windGain.gain.setTargetAtTime(on?(.02+near*.16)*volume:0,audio.currentTime,.2);}
+ if(gain){const on=playing&&!paused&&!muted;gain.gain.setTargetAtTime(on&&!watching?.04*volume:0,audio.currentTime,.1);engine.frequency.setTargetAtTime(35+Math.hypot(me.vx,me.vz)*2.5,audio.currentTime,.1);{const gap=storm.z-me.z,prox=watching?.25:clamp(1-(gap-6)/55,0,1)*.85+(me.cover||0)*.15+(me.stormDepth>0?.15:0);windUpdate(on,Math.min(1,prox),now/1000);}}
  menuDirty=false;renderer.shadowMap.autoUpdate=quality==='high'||frame%2===0||!playing;
  if(!renderer.isWebGLRenderer){renderer.setRenderTarget(null);renderer.render(scene,camera);}else{renderer.setRenderTarget(rt);renderer.render(scene,camera);renderer.setRenderTarget(null);renderer.render(postScene,postCam);}}
 $('start').disabled=false;$('start').firstChild.textContent='В путь ';requestAnimationFrame(render);
