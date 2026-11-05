@@ -38,10 +38,19 @@ function kitProp(name,size,{wreck=false,by='y'}={}){const m=kitMesh(name,{wreck}
 
 // Ground tiles recycle behind the convoy; dunes rise beyond the drivable band.
 const noise=(x,z)=>Math.sin(x*.16+Math.sin(z*.035))*Math.cos(z*.12)*.7+Math.sin(x*.041+z*.023)*1.3;
-// Ground tiles follow the road: each tile is reshaped around the winding centre line when it recycles.
-const groundBase=new T.PlaneGeometry(420,180,52,24);groundBase.rotateX(-Math.PI/2);
-function shapeGround(m){const geo=m.geometry,pos=geo.attributes.position,col=geo.attributes.color,base=groundBase.attributes.position;for(let i=0;i<pos.count;i++){const lx=base.getX(i),lz=base.getZ(i),wz=m.position.z+lz,x=lx-roadCenter(wz)+m.position.x,dune=clamp((Math.abs(x)-48)/22,0,1);pos.setY(i,noise(lx,wz)*1.7*dune+dune*dune*2.2-.16);const patch=.94+.08*Math.sin(lx*.05+wz*.031)*Math.cos(wz*.043-lx*.012)+.05*dune;col.setXYZ(i,patch*1.02,patch,patch*.95);}pos.needsUpdate=true;col.needsUpdate=true;geo.computeVertexNormals();geo.computeBoundingSphere();}
-const grounds=[];for(let i=0;i<4;i++){const geo=groundBase.clone();geo.setAttribute('color',new T.BufferAttribute(new Float32Array(geo.attributes.position.count*3),3));const m=new T.Mesh(geo,groundMat);m.position.z=120-i*180;m.position.x=roadCenter(m.position.z);m.receiveShadow=true;shapeGround(m);scene.add(m);grounds.push(m);}
+// One seamless ground sheet follows the camera in 8 m steps. Heights, colour and texture
+// coordinates come from world position, so the surface never shows seams or slides.
+const GROUND=560,CELL=8,groundGeo=new T.PlaneGeometry(GROUND,GROUND,GROUND/CELL,GROUND/CELL);groundGeo.rotateX(-Math.PI/2);
+groundGeo.setAttribute('color',new T.BufferAttribute(new Float32Array(groundGeo.attributes.position.count*3),3));
+const groundLocal=Float32Array.from(groundGeo.attributes.position.array);
+const groundTex=sandTexture.clone();groundTex.repeat.set(1,1);groundTex.needsUpdate=true;groundMat.map=groundTex;groundMat.bumpMap=groundTex;
+const ground=new T.Mesh(groundGeo,groundMat);ground.receiveShadow=true;ground.frustumCulled=false;scene.add(ground);let groundAt=null;
+function updateGround(cx,cz){const sx=Math.round(cx/CELL)*CELL,sz=Math.round(cz/CELL)*CELL,key=sx+','+sz;if(key===groundAt)return;groundAt=key;ground.position.set(sx,0,sz);
+ const pos=groundGeo.attributes.position,col=groundGeo.attributes.color,uv=groundGeo.attributes.uv;
+ for(let i=0;i<pos.count;i++){const lx=groundLocal[i*3],lz=groundLocal[i*3+2],wx=sx+lx,wz=sz+lz,d=Math.abs(wx-roadCenter(wz)),dune=clamp((d-48)/22,0,1);
+  pos.setY(i,noise(wx,wz)*1.7*dune+dune*dune*2.2-.16);const patch=.94+.08*Math.sin(wx*.05+wz*.031)*Math.cos(wz*.043-wx*.012)+.05*dune;col.setXYZ(i,patch*1.02,patch,patch*.95);uv.setXY(i,wx/15.7,-wz/15.7);}
+ pos.needsUpdate=col.needsUpdate=uv.needsUpdate=true;groundGeo.computeVertexNormals();}
+updateGround(0,-100);
 makeRoute(scene);
 
 // Roadside junk recycles ahead of the convoy: pallets, blocks, tyres, bags and cones from the kit.
@@ -296,7 +305,7 @@ function render(now){requestAnimationFrame(render);if(document.hidden||paused||e
  if(active){camTarget.set(c.x,narrow?50:40,viewZ+44);if(camera.position.distanceTo(camTarget)>60)camera.position.copy(camTarget);else camera.position.lerp(camTarget,1-Math.exp(-dt*(watching?2.5:4)));}else camera.position.set(26+Math.sin(now*.00006)*4,30,29);
  look.set(active?c.x:3,0,viewZ-(narrow?8:5));camera.lookAt(look);
  sun.position.set(c.x-40,26,viewZ+22);sun.target.position.set(c.x,0,viewZ-14);fill.position.set(c.x+30,25,viewZ-40);fill.target.position.set(c.x,0,viewZ);
- for(const g of grounds){let moved=false;while(g.position.z>viewZ+220){g.position.z-=720;moved=true;}while(g.position.z<viewZ-500){g.position.z+=720;moved=true;}if(moved){g.position.x=roadCenter(g.position.z);shapeGround(g);}}
+ updateGround(c.x,viewZ-110);
  for(const p of props){p.visible=p.position.z>viewZ-150&&p.position.z<viewZ+65;if(p.position.z>viewZ+80)p.position.z=viewZ-550-Math.random()*80;if(p.position.z<viewZ-700)p.position.z=viewZ+70;p.position.x=roadside(p.position.z,p.userData.roadOffset);}
  for(const g of distant)g.visible=Math.abs(g.position.z-viewZ)<120;oasis.visible=Math.abs(oasis.position.z-viewZ)<170;for(const p of pits)p.g.visible=Math.abs(p.z-viewZ)<150;for(const f of fuels)f.g.visible=f.active&&Math.abs(f.z-viewZ)<150;
  // The storm wall follows the road and churns; it tints the frame as it closes in.
