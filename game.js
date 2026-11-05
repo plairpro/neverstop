@@ -10,7 +10,7 @@ const $=id=>document.getElementById(id);
 
 // Graphics quality: full picture by default, economy mode trades resolution and frame rate for a quieter laptop.
 let quality='high';try{if(localStorage.getItem('neverstop-quality')==='low')quality='low';}catch{}
-let renderer;try{renderer=new T.WebGLRenderer({canvas:$('world'),antialias:false,powerPreference:'high-performance'});}catch(e){renderer=new SoftwareRenderer($('world'));document.querySelector('.tag').textContent='Облегчённая графика';}
+let renderer;try{renderer=new T.WebGLRenderer({canvas:$('world'),antialias:false,powerPreference:'high-performance'});}catch(e){renderer=new SoftwareRenderer($('world'));}
 renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=.98;
 document.body.classList.toggle('gpu',!!renderer.isWebGLRenderer);
 
@@ -207,11 +207,11 @@ function reset(){menuDirty=true;for(const m of models)disposeRaceObject(m.g);for
  time=0;acc=0;ended=false;paused=false;$('modal').hidden=true;$('status').textContent='';$('sink').style.display='none';$('boost').hidden=true;$('playerTag').hidden=true;}
 function start(){reset();playing=true;audioStart();startEngines();$('menu').hidden=true;$('footer').hidden=true;$('hud').hidden=false;$('pause').hidden=false;document.body.classList.add('playing');audioStart();clearSteering();}
 let rosterMarkup='';function updateRaceHud(){const total=caravanCargo(cars);const value=total+'<span>из '+TOTAL+'</span>';if($('alive').innerHTML!==value)$('alive').innerHTML=value;
- const markup=cars.map(a=>`<div style="opacity:${a.dead?.45:1}"><i style="background:${paints[a.id]}"></i><b>${names[a.id]}</b><span class="${a.stuck?'stuck':''}">${a.dead?'Буря':a.finished?'В оазисе '+a.delivered:a.stuck?'Застрял':a.cargo.length}</span></div>`).join('');if(markup!==rosterMarkup){$('roster').innerHTML=markup;rosterMarkup=markup;}}
+ const markup=cars.map(a=>`<div style="opacity:${a.dead?.45:1}"><i style="background:${paints[a.id]}"></i><b>${names[a.id]}</b><span class="${a.stuck?'stuck':a.finished?'done':''}">${a.dead?'Буря':a.finished?'В посёлке '+a.delivered:a.stuck?'Застрял':a.cargo.length}</span></div>`).join('');if(markup!==rosterMarkup){$('roster').innerHTML=markup;rosterMarkup=markup;}}
 function finish(){updateRaceHud();ended=true;playing=false;watching=false;clearSteering();document.body.classList.remove('stormy');const arrived=cars.filter(c=>c.finished).length,delivered=cars.reduce((n,c)=>n+(c.finished?c.delivered:0),0);
  $('modal').hidden=false;$('resultLabel').hidden=true;$('resultDetail').hidden=false;$('settings').hidden=true;
  $('resultTitle').innerHTML=arrived===0?'Буря забрала<br>караван':arrived===4?'Караван<br>дошёл':'Дошли<br>не все';
- $('resultDetail').innerHTML=`<span>Доехали ${arrived} из 4</span><span>Груз ${delivered} из ${TOTAL}</span><span>Спасено ${cars[0].rescues}</span><span>Поймано ${cars[0].catches}</span>`;
+ $('resultDetail').innerHTML=`<span>Доехали<b>${arrived} из 4</b></span><span>Груз в посёлке<b>${delivered} из ${TOTAL}</b></span><span>Ты вытолкнул<b>${cars[0].rescues}</b></span><span>Ты подобрал<b>${cars[0].catches}</b></span>`;
  $('again').textContent='Ещё заезд';$('pause').hidden=true;$('again').focus();}
 function pause(){if(ended||!playing)return;paused=!paused;if(paused&&gain){gain.gain.setTargetAtTime(0,audio.currentTime,.05);windGain.gain.setTargetAtTime(0,audio.currentTime,.05);}$('modal').hidden=!paused;if(paused){$('resultLabel').hidden=true;$('resultTitle').innerHTML='Переведи<br>дух';$('resultDetail').hidden=true;$('settings').hidden=false;$('settings').open=false;$('again').textContent='Продолжить';$('again').focus();}else{$('pause').focus();}keys.clear();clearSteering();}
 function updateSound(){const enabled=!muted&&volume>0;$('sound').setAttribute('aria-label',enabled?'Выключить звук':'Включить звук');$('sound').setAttribute('aria-pressed',String(enabled));$('sound').classList.toggle('muted',!enabled);}
@@ -261,7 +261,7 @@ function tick(dt){if(time===0)say('Ты замыкаешь караван, бу�
  for(let i=0;i<4;i++)syncCargo(models[i],cars[i]);
  if(cars.every(c=>c.dead||c.finished)){finish();return;}
  // When the player is out, keep watching the rest of the caravan.
- if(!watching&&(cars[0].dead||cars[0].finished)){watching=true;clearSteering();$('status').textContent=cars[0].finished?'Ты в оазисе, ждём остальных':'Тебя накрыла буря, караван ещё в пути';toast=4;}
+ if(!watching&&(cars[0].dead||cars[0].finished)){watching=true;clearSteering();$('status').textContent=cars[0].finished?'Ты в посёлке, ждём остальных':'Тебя накрыла буря, караван ещё в пути';toast=4;}
 }
 function focusCar(){if(!watching)return cars[0];let f=null;for(const c of cars)if(!c.dead&&!c.finished&&(!f||c.z>f.z))f=c;return f||cars[0];}
 if(location.search.includes('debug'))window.__ns={T,scene,camera,get cars(){return cars},get models(){return models},get storm(){return storm},renderer,post,set view(v){debugView=v},press(code,on=true){on?keys.add(code):keys.delete(code)},sim(seconds,auto=true){autopilot=auto;for(let t=0;t<seconds*60&&playing;t++)tick(1/60);return {time:+time.toFixed(1),storm:+storm.z.toFixed(0),cars:cars.map(c=>({z:+c.z.toFixed(0),cargo:c.cargo.length,dead:c.dead,fin:c.finished,del:c.delivered,fuel:+c.fuel.toFixed(0),lost:c.lostCargo,stuck:c.stuck,resc:c.rescues,catch:c.catches})),loose:loose.length,swallowed:storm.swallowed}}};let autopilot=false;let debugView=null;
@@ -289,11 +289,11 @@ function render(now){requestAnimationFrame(render);if(document.hidden||paused||e
  if(debugView)debugView(camera,now);camera.updateMatrixWorld(true);
  for(let i=1;i<4;i++){const tag=helpTags[i],a=cars[i];if(!(playing&&!watching&&a.stuck&&!a.dead)){tag.hidden=true;continue;}const p=models[i].g.position.clone().add(new T.Vector3(0,3.2,0)).project(camera);tag.hidden=p.z>1;tag.style.left=clamp((p.x*.5+.5)*innerWidth,48,innerWidth-48)+'px';tag.style.top=clamp((-p.y*.5+.5)*innerHeight,128,innerHeight-150)+'px';tag.classList.toggle('urgent',storm.z-a.z<STORM_EDGE+8);}
  if(playing&&!watching){const anchor=models[0].g.position.clone().add(new T.Vector3(0,3.5,0)).project(camera);$('playerTag').hidden=anchor.z>1;$('playerTag').style.left=((anchor.x*.5+.5)*innerWidth)+'px';$('playerTag').style.top=((-anchor.y*.5+.5)*innerHeight)+'px';}else $('playerTag').hidden=true;
- const me=cars[0];if(active&&now-lastHud>=100){lastHud=now;$('fuelMeter').setAttribute('aria-valuenow',String(Math.ceil(me.fuel/me.spec.capacity*100)));$('fuelBar').style.width=(me.fuel/me.spec.capacity*100)+'%';document.body.classList.toggle('lowfuel',me.fuel/me.spec.capacity<.25&&!watching);$('speed').textContent=Math.round(Math.hypot(c.vx,c.vz)*3.6);document.body.classList.toggle('reversing',!watching&&(me.vx*Math.sin(me.yaw)-me.vz*Math.cos(me.yaw))<-.5);$('distance').textContent='До оазиса '+(Math.max(0,RACE_LENGTH+c.z)/1000).toFixed(2).replace('.',',')+' км';
+ const me=cars[0];if(active&&now-lastHud>=100){lastHud=now;$('fuelMeter').setAttribute('aria-valuenow',String(Math.ceil(me.fuel/me.spec.capacity*100)));$('fuelBar').style.width=(me.fuel/me.spec.capacity*100)+'%';$('fuelText').textContent=Math.ceil(me.fuel)+' л';document.body.classList.toggle('lowfuel',me.fuel/me.spec.capacity<.25&&!watching);$('speed').textContent=Math.round(Math.hypot(c.vx,c.vz)*3.6);document.body.classList.toggle('reversing',!watching&&(me.vx*Math.sin(me.yaw)-me.vz*Math.cos(me.yaw))<-.5);$('distance').textContent='До посёлка '+(Math.max(0,RACE_LENGTH+c.z)/1000).toFixed(2).replace('.',',')+' км';
   const gap=Math.max(0,storm.z-c.z);$('stormGap').textContent=c.stormDepth>0?'Буря накрыла':'Буря в '+Math.round(gap)+' м';$('stormBar').style.width=(clamp(1-(gap-STORM_EDGE)/(STORM_MAX_GAP-STORM_EDGE+4),0,1)*100)+'%';
   $('boost').hidden=me.boost<=0||watching;$('boost').textContent='Нитро '+Math.ceil(me.boost)+' с';updateRaceHud();const cover=me.cover||0;$('sink').style.display=!watching&&(me.sink>.15||cover>.02)?'block':'none';$('sinkTitle').textContent=cover>.02?'Выбирайся из бури':'Не останавливайся';$('sinkNote').textContent=cover>.02?'Буря затягивает':'Песок затягивает';$('sinkBar').style.width=(Math.max(me.sink/3.8,cover)*100)+'%';}
  if(toast>0&&!paused){toast-=dt;if(toast<=0)$('status').textContent='';}
  if(gain){const on=playing&&!paused&&!muted;gain.gain.setTargetAtTime(on&&!watching?.04*volume:0,audio.currentTime,.1);engine.frequency.setTargetAtTime(35+Math.hypot(me.vx,me.vz)*2.5,audio.currentTime,.1);{const gap=storm.z-me.z,prox=watching?.25:clamp(1-(gap-6)/55,0,1)*.85+(me.cover||0)*.15+(me.stormDepth>0?.15:0);windUpdate(on,Math.min(1,prox),now/1000);}}
  menuDirty=false;renderer.shadowMap.autoUpdate=quality==='high'||frame%2===0||!playing;
  if(!renderer.isWebGLRenderer){renderer.setRenderTarget(null);renderer.render(scene,camera);}else{renderer.setRenderTarget(rt);renderer.render(scene,camera);renderer.setRenderTarget(null);renderer.render(postScene,postCam);}}
-$('start').disabled=false;$('start').firstChild.textContent='В путь ';requestAnimationFrame(render);
+$('start').disabled=false;$('start').textContent='В путь';requestAnimationFrame(render);
