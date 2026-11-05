@@ -1,5 +1,5 @@
 import * as T from './three.js';
-import {RACE_LENGTH,roadCenter} from './course.js?v=13';
+import {RACE_LENGTH,roadCenter} from './course.js?v=15';
 // Faint winding sand shadows, split into short sections for frustum culling.
 export function makeRoute(scene){const meshes=[];
 for(let start=60;start>-RACE_LENGTH-80;start-=80)for(let band=0;band<3;band++){

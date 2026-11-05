@@ -1,4 +1,4 @@
-import {obstacleDepth,terrainHeight,roadCenter,ROAD_HALF} from './course.js?v=13';
+import {obstacleDepth,terrainHeight,roadCenter,ROAD_HALF} from './course.js?v=15';
 export const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 export const CAR_TYPES=Object.freeze({
  sedan:Object.freeze({name:'Легковая',maxSpeed:96,capacity:80,drive:12.53,frontGrip:11.4,rearGrip:9.2,yawDamping:1.58,poolDrag:.82,duneDrag:1}),
@@ -29,7 +29,7 @@ export function step(c,dt,pits,input=0){
  c.yaw+=c.yawRate*dt;
  if(Math.abs(c.yaw)>1.12){c.yaw=clamp(c.yaw,-1.12,1.12);if(c.yawRate*c.yaw>0)c.yawRate*=Math.exp(-dt*12);}
  const drag=.47+resistance+shoulder*2.8;
- const drive=c.fuel>0?c.spec.drive*(boostActive?1.6:1):0;
+ const drive=c.fuel>0?c.spec.drive*(boostActive?1.6:1)*(c.loadFactor??1):0;
  c.lateralAccel=frontForce+rearForce;
  c.vx+=(fx*drive+rx*c.lateralAccel-c.vx*drag)*dt;
  c.vz+=(fz*drive+rz*c.lateralAccel-c.vz*drag)*dt;
