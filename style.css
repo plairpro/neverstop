@@ -5,8 +5,8 @@
 
 :root{
  --bg-0:#12110f;--bg-1:#161513;--card:#1c1a18;--raised:#262421;
- --plate:rgba(22,21,19,.78);--plate-strong:rgba(22,21,19,.9);
- --line:rgba(239,233,222,.09);--line-strong:rgba(239,233,222,.16);
+ --plate:rgba(34,28,20,.26);--plate-strong:rgba(34,28,20,.42);
+ --line:rgba(239,233,222,.14);--line-strong:rgba(239,233,222,.16);
  --text:#efe9de;--text-2:#b4ada1;--text-3:#8a847a;
  --accent:#e8742f;--accent-ink:#1f1209;--danger:#e5484d;--storm:#b98552;--cool:#8ccbd4;
  --font:'Archivo',system-ui,sans-serif;--mono:'JetBrains Mono',ui-monospace,monospace;
@@ -68,15 +68,17 @@ kbd{display:inline-grid;place-items:center;min-width:24px;height:24px;padding:0 
 footer{position:fixed;left:calc(var(--edge) + 48px);bottom:var(--edge);display:flex;gap:16px;font-size:12px;color:var(--text-3);pointer-events:none;z-index:2}
 
 /* HUD */
-#hud{position:fixed;inset:0;pointer-events:none;z-index:2}
+#hud{position:fixed;inset:0;pointer-events:none;z-index:2;text-shadow:0 1px 3px rgba(18,14,9,.6);--text-2:#e8e1d4;--text-3:#d2c8b6}
 .gauges{position:absolute;top:var(--edge);left:50%;transform:translateX(-50%);width:min(360px,calc(100vw - 2 * var(--edge) - 200px));padding:10px 14px;display:grid;gap:10px}
 .fuelpanel{display:grid;grid-template-columns:18px 1fr;align-items:center;gap:12px;color:var(--text-2)}
 .gauges small{font:500 12px/16px var(--mono);font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
 /* Gauge: a track with tick marks every tenth, like the cab instruments */
-.bar{position:relative;height:6px;border-radius:3px;overflow:hidden;background:rgba(239,233,222,.1)}
+.bar{position:relative;height:6px;border-radius:3px;overflow:hidden;background:rgba(30,24,16,.3)}
 .bar::after{content:'';position:absolute;inset:0;background:repeating-linear-gradient(90deg,transparent 0 calc(10% - 1px),rgba(18,17,15,.7) calc(10% - 1px) 10%);pointer-events:none}
 .bar>div{height:100%;width:0;border-radius:3px;transition:width .15s linear}
 #fuelBar{background:var(--text)}
+/* Fuel: one tick per 5 litres, the amount in one can (120 l tank) */
+#fuelMeter::after{background:repeating-linear-gradient(90deg,transparent 0 calc(100% / 24 - 1px),rgba(18,17,15,.75) calc(100% / 24 - 1px) calc(100% / 24))}
 body.lowfuel #fuelBar{background:var(--accent)}
 body.lowfuel .fuelpanel{color:var(--accent)}
 #stormBar{background:var(--storm)}

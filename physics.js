@@ -2,7 +2,7 @@ import {obstacleDepth,terrainHeight,roadCenter,ROAD_HALF} from './course.js?v=16
 export const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 export const CAR_TYPES=Object.freeze({
  sedan:Object.freeze({name:'Легковая',maxSpeed:96,capacity:80,drive:12.53,frontGrip:11.4,rearGrip:9.2,yawDamping:1.58,poolDrag:.82,duneDrag:1}),
- pickup:Object.freeze({name:'Пикап',maxSpeed:78,capacity:120,drive:10.18,frontGrip:12.5,rearGrip:12.4,yawDamping:2.3,poolDrag:1,duneDrag:.8})
+ pickup:Object.freeze({name:'Пикап',maxSpeed:100,capacity:120,drive:13.2,frontGrip:12.8,rearGrip:9.4,yawDamping:1.7,poolDrag:1,duneDrag:.8})
 });
 export function vehicle(id,x,z,type='sedan'){const spec=CAR_TYPES[type]||CAR_TYPES.sedan;return{id,x,z,type:CAR_TYPES[type]?type:'sedan',spec,vx:0,vz:-16,yaw:0,fuel:spec.capacity,sink:0,dead:false,steer:0,yawRate:0,slip:0,lateralAccel:0,distance:0,hits:0,pickups:0,slow:0,boost:0,groundHeight:0,terrainPitch:0,finished:false,finishPlace:0};}
 // throttle: 0 cruise (automatic gas), +1 floors it, -1 brakes and then reverses.
@@ -10,7 +10,7 @@ export function step(c,dt,pits,input=0,throttle=0){
  if(c.dead||c.finished)return;
  const speed=Math.hypot(c.vx,c.vz);
  const boostActive=c.boost>0;c.boost=Math.max(0,c.boost-dt);
- c.fuel=Math.max(0,c.fuel-dt*1.05*(throttle>.05?1.6:1));
+ c.fuel=Math.max(0,c.fuel-dt*1.05*(throttle>.05?1.6:1)*(c.stormBurn||1));
  c.steer+=(clamp(input,-1,1)-c.steer)*(1-Math.exp(-dt*9));
  let deep=0,dune=0,resistance=0,height=0,frontHeight=0,rearHeight=0;
  for(const p of pits){if(Math.abs(p.z-c.z)>p.r+3)continue;const depth=obstacleDepth(p,c.x,c.z);if(!depth)continue;if(p.kind==='pool'){deep=Math.max(deep,depth);resistance=Math.max(resistance,depth*8*c.spec.poolDrag);}else{if(p.kind==='dune')dune=Math.max(dune,depth);resistance=Math.max(resistance,depth*(p.kind==='dune'?1.1*c.spec.duneDrag:1.8));height=Math.max(height,terrainHeight(p,c.x,c.z));const fx=Math.sin(c.yaw)*1.2,fz=-Math.cos(c.yaw)*1.2;frontHeight=Math.max(frontHeight,terrainHeight(p,c.x+fx,c.z+fz));rearHeight=Math.max(rearHeight,terrainHeight(p,c.x-fx,c.z-fz));}}
@@ -39,6 +39,8 @@ export function step(c,dt,pits,input=0,throttle=0){
  c.vx+=(fx*drive+rx*c.lateralAccel-c.vx*drag)*dt;
  c.vz+=(fz*drive+rz*c.lateralAccel-c.vz*drag)*dt;
  if(braking){const v=Math.hypot(c.vx,c.vz),cut=Math.min(v,18*-throttle*dt);if(v>.01){c.vx-=c.vx/v*cut;c.vz-=c.vz/v*cut;}}
+ // Pools drag hard but never trap a pickup that still has fuel: it crawls through at walking pace.
+ if(deep>0&&drive>0){const f2=c.vx*fx+c.vz*fz;if(f2<4.5){c.vx+=fx*(4.5-f2)*Math.min(1,dt*4);c.vz+=fz*(4.5-f2)*Math.min(1,dt*4);}}
  c.slip=Math.atan2(lateral,Math.max(3,Math.abs(forward)));
  c.x+=c.vx*dt;c.z+=c.vz*dt;c.distance+=Math.max(0,-c.vz)*dt;
  const actual=Math.hypot(c.vx,c.vz);

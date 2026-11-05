@@ -18,7 +18,7 @@ export function loadFactor(c){return (1-(c.cargo?.length??0)*.012)*(c.id?ALLY_PA
 
 export function createStorm(){return {z:STORM_START,speed:12.5,swallowed:0};}
 
-export function stormSpeed(time){return Math.min(17,12+time*.055);}
+export function stormSpeed(time){return Math.min(22,15+time*.045);}
 
 export function stepStorm(storm,cars,dt,time){
  let rear=-Infinity;for(const c of cars)if(!c.dead&&!c.finished)rear=Math.max(rear,c.z);
@@ -32,6 +32,8 @@ export function stepStorm(storm,cars,dt,time){
   // Inside the wall dust builds up gradually; drive out and it clears. Fully covered means lost.
   if(c.stormDepth>0){c.cover=Math.min(1,c.cover+dt*(.05+.1*c.stormDepth));const k=Math.exp(-dt*.12*c.stormDepth);c.vx*=k;c.vz*=k;}
   else c.cover=Math.max(0,c.cover-dt*.35);
+  // Fighting out of the wall burns fuel: 2.5x while inside or still clearing the dust.
+  c.stormBurn=c.cover>0?2.5:1;
   if(c.cover>=1){c.dead=true;c.stuck=false;}
  }
 }

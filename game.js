@@ -1,7 +1,7 @@
 import {assetCar,assetProp,kitMesh,kitBox,sharedKitMaterials,sharedKitGeometries} from './quaternius.js?v=16';
 import {makeRoute} from './route.js?v=16';
 import {batchStatic} from './render-utils.js?v=16';
-import {RACE_LENGTH,roadCenter,createCourse,contour,finishCrossings} from './course.js?v=16';
+import {RACE_LENGTH,roadCenter,roadside,createCourse,contour,finishCrossings} from './course.js?v=16';
 import * as T from './three.js';
 import {SoftwareRenderer} from './software.js?v=16';
 import {vehicle,step,collide,collideSolid,pickup,clamp} from './physics.js?v=16';
@@ -38,8 +38,10 @@ function kitProp(name,size,{wreck=false,by='y'}={}){const m=kitMesh(name,{wreck}
 
 // Ground tiles recycle behind the convoy; dunes rise beyond the drivable band.
 const noise=(x,z)=>Math.sin(x*.16+Math.sin(z*.035))*Math.cos(z*.12)*.7+Math.sin(x*.041+z*.023)*1.3;
-const groundGeo=new T.PlaneGeometry(220,180,36,24);groundGeo.rotateX(-Math.PI/2);{const base=groundGeo.attributes.position,col=new Float32Array(base.count*3);for(let i=0;i<base.count;i++){const x=base.getX(i),z=base.getZ(i),dune=clamp((Math.abs(x)-50)/22,0,1);base.setY(i,noise(x,z)*1.7*dune+dune*dune*2.2-.16);const patch=.94+.08*Math.sin(x*.05+z*.031)*Math.cos(z*.043-x*.012)+.05*dune;col.set([patch*1.02,patch,patch*.95],i*3);}groundGeo.setAttribute('color',new T.BufferAttribute(col,3));groundGeo.computeVertexNormals();}
-const grounds=[];for(let i=0;i<4;i++){const m=new T.Mesh(groundGeo,groundMat);m.position.z=120-i*180;m.receiveShadow=true;scene.add(m);grounds.push(m);}
+// Ground tiles follow the road: each tile is reshaped around the winding centre line when it recycles.
+const groundBase=new T.PlaneGeometry(420,180,52,24);groundBase.rotateX(-Math.PI/2);
+function shapeGround(m){const geo=m.geometry,pos=geo.attributes.position,col=geo.attributes.color,base=groundBase.attributes.position;for(let i=0;i<pos.count;i++){const lx=base.getX(i),lz=base.getZ(i),wz=m.position.z+lz,x=lx-roadCenter(wz)+m.position.x,dune=clamp((Math.abs(x)-48)/22,0,1);pos.setY(i,noise(lx,wz)*1.7*dune+dune*dune*2.2-.16);const patch=.94+.08*Math.sin(lx*.05+wz*.031)*Math.cos(wz*.043-lx*.012)+.05*dune;col.setXYZ(i,patch*1.02,patch,patch*.95);}pos.needsUpdate=true;col.needsUpdate=true;geo.computeVertexNormals();geo.computeBoundingSphere();}
+const grounds=[];for(let i=0;i<4;i++){const geo=groundBase.clone();geo.setAttribute('color',new T.BufferAttribute(new Float32Array(geo.attributes.position.count*3),3));const m=new T.Mesh(geo,groundMat);m.position.z=120-i*180;m.position.x=roadCenter(m.position.z);m.receiveShadow=true;shapeGround(m);scene.add(m);grounds.push(m);}
 makeRoute(scene);
 
 // Roadside junk recycles ahead of the convoy: pallets, blocks, tyres, bags and cones from the kit.
@@ -47,22 +49,22 @@ const props=[];const junk=[['pallet',1.25,'x'],['palletBroken',1.25,'x'],['block
 for(let i=0;i<64;i++){const side=i%2?1:-1,x=side*(21+Math.random()*16),z=80-Math.random()*650;let g;
  if(i%4===0){g=new T.Mesh(new T.DodecahedronGeometry(.5+Math.random()*2.2,0),mat(i%3?'#92846a':'#7c7963'));g.scale.y=.35+Math.random()*.5;g.castShadow=g.receiveShadow=true;g.geometry.computeBoundingBox();const b=g.geometry.boundingBox;solids.push({object:g,hx:(b.max.x-b.min.x)*.5,hz:(b.max.z-b.min.z)*.5});}
  else{const [name,size,by]=junk[i%junk.length];const p=kitProp(name,size*(.9+Math.random()*.3),{by});g=p.g;g.children[0].rotation.z=name==='cone'&&i%3===0?Math.PI/2.3:0;}
- g.rotation.y=Math.random()*6;g.position.set(roadCenter(z)+x,0,z);g.userData.roadOffset=x;scene.add(g);props.push(g);}
+ g.rotation.y=Math.random()*6;g.position.set(roadside(z,x),0,z);g.userData.roadOffset=x;scene.add(g);props.push(g);}
 const scrubMat=mat('#737a4c'),twigMat=mat('#6a5a40');
 for(let i=0;i<110;i++){const g=new T.Group(),side=i%2?1:-1,x=side*(20+Math.random()*14),z=65-Math.random()*640;
  if(i%4===0){const rock=new T.Mesh(new T.DodecahedronGeometry(.18+Math.random()*.45,0),mat('#a2957c'));rock.scale.set(1,.5,1.3);rock.castShadow=true;g.add(rock);}
  else{const h=.35+Math.random()*.65;for(let j=0;j<3;j++){const a=j*2.1+i;strut(g,[0,0,0],[Math.cos(a)*.4,h,Math.sin(a)*.4],.035,twigMat);const leaf=new T.Mesh(new T.IcosahedronGeometry(.25+Math.random()*.18,0),scrubMat);leaf.position.set(Math.cos(a)*.35,h,Math.sin(a)*.35);leaf.scale.y=.7;leaf.castShadow=true;g.add(leaf);}}
- g.position.set(roadCenter(z)+x,0,z);g.userData.roadOffset=x;batchStatic(g);scene.add(g);props.push(g);}
+ g.position.set(roadside(z,x),0,z);g.userData.roadOffset=x;batchStatic(g);scene.add(g);props.push(g);}
 
 // Landmarks along the 1.6 km: containers, wrecked cars, water towers and barriers, all solid.
 function place(g,x,z,turn,hx,hz){g.position.set(x,0,z);g.rotation.y=turn;scene.add(g);distant.push(g);solids.push({object:g,hx,hz});}
-for(let i=0;i<40;i++){const z=-50-i*39,side=i%2?1:-1,kind=i%8;
- if(kind===0){const g=assetProp('tower'),b=new T.Box3().setFromObject(g),s=b.getSize(new T.Vector3()),k=9/s.y;g.scale.setScalar(k);g.children.forEach(c=>c.position.y-=b.min.y);place(g,roadCenter(z)+side*36,z,i*.7,s.x*k/2,s.z*k/2);}
- else if(kind===1||kind===5){const p=kitProp(i%3?'containerRed':'containerGreen',6,{by:'x'});if(i%4===1){const top=kitProp('containerGreen',6,{by:'x'});top.g.position.y=p.h-.02;top.g.rotation.y=.12;p.g.add(top.g);}place(p.g,roadCenter(z)+side*(27+i%3*3),z,Math.PI/2+side*.25+(i%5)*.15,p.hx,p.hz);}
- else if(kind===2||kind===6){const name=['wreckPickup','wreckTruck','wreckSports'][i%3],p=kitProp(name,name==='wreckTruck'?6:5,{wreck:true,by:'z'});p.g.children[0].rotation.z=i%4===2?.18:-.06;place(p.g,roadCenter(z)+side*(23+i%4*1.5),z,i*1.37,p.hx,p.hz);}
- else if(kind===3){const p=kitProp('barrier2',1.3,{by:'x'});for(let j=1;j<4;j++){const q=kitProp('barrier2',1.3,{by:'x'});q.g.position.x=j*1.25;q.g.rotation.y=(j%2?.18:-.12);p.g.add(q.g);}place(p.g,roadCenter(z)+side*22.5,z,Math.PI/2+side*.2,2.6,.5);}
- else if(kind===4){const g=assetProp('barrel'),k=1.25/1.15;g.scale.setScalar(k);place(g,roadCenter(z)+side*24,z,i,.4,.4);const p=kitProp('tires',1.1);p.g.position.set(1.3,0,.6);g.add(p.g);}
- else{const p=kitProp('couch',1.1);place(p.g,roadCenter(z)+side*(25+i%3),z,i*.9,p.hx,p.hz);}}
+for(let i=0;i<Math.floor(RACE_LENGTH/39);i++){const z=-50-i*39,side=i%2?1:-1,kind=i%8;
+ if(kind===0){const g=assetProp('tower'),b=new T.Box3().setFromObject(g),s=b.getSize(new T.Vector3()),k=9/s.y;g.scale.setScalar(k);g.children.forEach(c=>c.position.y-=b.min.y);place(g,roadside(z,side*36),z,i*.7,s.x*k/2,s.z*k/2);}
+ else if(kind===1||kind===5){const p=kitProp(i%3?'containerRed':'containerGreen',6,{by:'x'});if(i%4===1){const top=kitProp('containerGreen',6,{by:'x'});top.g.position.y=p.h-.02;top.g.rotation.y=.12;p.g.add(top.g);}place(p.g,roadside(z,side*(27+i%3*3)),z,Math.PI/2+side*.25+(i%5)*.15,p.hx,p.hz);}
+ else if(kind===2||kind===6){const name=['wreckPickup','wreckTruck','wreckSports'][i%3],p=kitProp(name,name==='wreckTruck'?6:5,{wreck:true,by:'z'});p.g.children[0].rotation.z=i%4===2?.18:-.06;place(p.g,roadside(z,side*(23+i%4*1.5)),z,i*1.37,p.hx,p.hz);}
+ else if(kind===3){const p=kitProp('barrier2',1.3,{by:'x'});for(let j=1;j<4;j++){const q=kitProp('barrier2',1.3,{by:'x'});q.g.position.x=j*1.25;q.g.rotation.y=(j%2?.18:-.12);p.g.add(q.g);}place(p.g,roadside(z,side*22.5),z,Math.PI/2+side*.2,2.6,.5);}
+ else if(kind===4){const g=assetProp('barrel'),k=1.25/1.15;g.scale.setScalar(k);place(g,roadside(z,side*24),z,i,.4,.4);const p=kitProp('tires',1.1);p.g.position.set(1.3,0,.6);g.add(p.g);}
+ else{const p=kitProp('couch',1.1);place(p.g,roadside(z,side*(25+i%3)),z,i*.9,p.hx,p.hz);}}
 // Obstacles on the road share their contours with the physics.
 const poolMat=mat('#4f4535',.75),poolInner=mat('#3a3529',.45,.1),rockMat=mat('#8b7d62',.95);
 function makeObstacle(p){const g=new T.Group(),verts=[],idx=[],segments=24,rings=p.kind==='pool'?2:5;
@@ -127,9 +129,9 @@ const oasis=new T.Group();{const post=mat('#4a4237',.7,.4),sheetA=mat('#8a5a3a',
 // Broken walls and poles mark the outside of bends.
 const concrete=mat('#a29880'),burnt=mat('#49483e');
 function brokenWall(g,w,h,x,z,turn=0){const shape=new T.Shape();shape.moveTo(-w/2,0);shape.lineTo(w/2,0);shape.lineTo(w/2,h*.63);shape.lineTo(w*.3,h*.88);shape.lineTo(w*.15,h*.69);shape.lineTo(-w*.05,h);shape.lineTo(-w*.2,h*.82);shape.lineTo(-w/2,h*.92);shape.closePath();const geo=new T.ExtrudeGeometry(shape,{depth:.38,bevelEnabled:false});const mesh=new T.Mesh(geo,concrete);mesh.position.set(x,0,z);mesh.rotation.y=turn;mesh.castShadow=mesh.receiveShadow=true;g.add(mesh);(g.userData.wallParts??=[]).push({mesh,w});}
-for(let i=0;i<22;i++){const g=new T.Group(),side=i%2?1:-1;brokenWall(g,5,2.8,-3,0);brokenWall(g,5,3.5,3,0);box(g,2,.6,.38,0,2.7,0,concrete);brokenWall(g,6,2.6,-5.5,-3,Math.PI/2);if(i%2)brokenWall(g,4,1.7,5.5,-2,Math.PI/2);for(let j=0;j<7;j++){const rubble=box(g,.4+j*.07,.25,.65,Math.sin(j*4)*5,.12,-1-j*.6,concrete);rubble.rotation.y=j;}
- const z=-70-i*71;g.position.set(roadCenter(z)+side*(29+i%3*4),0,z);g.updateMatrixWorld(true);for(const part of g.userData.wallParts){const center=part.mesh.localToWorld(new T.Vector3(0,0,.19));solids.push({x:center.x,z:center.z,hx:part.w/2,hz:.19,angle:-part.mesh.rotation.y});}delete g.userData.wallParts;batchStatic(g);scene.add(g);distant.push(g);}
-for(let i=0;i<23;i++){const z=-30-i*70,side=i%2?1:-1,x=roadCenter(z)+side*22;let g;
+for(let i=0;i<Math.floor(RACE_LENGTH/71)-1;i++){const g=new T.Group(),side=i%2?1:-1;brokenWall(g,5,2.8,-3,0);brokenWall(g,5,3.5,3,0);box(g,2,.6,.38,0,2.7,0,concrete);brokenWall(g,6,2.6,-5.5,-3,Math.PI/2);if(i%2)brokenWall(g,4,1.7,5.5,-2,Math.PI/2);for(let j=0;j<7;j++){const rubble=box(g,.4+j*.07,.25,.65,Math.sin(j*4)*5,.12,-1-j*.6,concrete);rubble.rotation.y=j;}
+ const z=-70-i*71;g.position.set(roadside(z,side*(29+i%3*4)),0,z);g.updateMatrixWorld(true);for(const part of g.userData.wallParts){const center=part.mesh.localToWorld(new T.Vector3(0,0,.19));solids.push({x:center.x,z:center.z,hx:part.w/2,hz:.19,angle:-part.mesh.rotation.y});}delete g.userData.wallParts;batchStatic(g);scene.add(g);distant.push(g);}
+for(let i=0;i<Math.floor(RACE_LENGTH/70)-1;i++){const z=-30-i*70,side=i%2?1:-1,x=roadside(z,side*22);let g;
  if(i%3===1){g=kitProp('lamp',6.6).g;g.children[0].rotation.set(side*.16,side>0?Math.PI:0,0);}
  else{g=new T.Group();strut(g,[0,0,0],[side*.8,4.8,0],.12,steel);strut(g,[side*.8,4.8,0],[side*-1.1,4.55,0],.075,steel);box(g,.55,.16,.3,side*-1.1,4.45,0,burnt);batchStatic(g);}
  g.position.set(x,0,z);scene.add(g);distant.push(g);solids.push({object:g,hx:.3,hz:.3});}
@@ -161,8 +163,12 @@ let fpsCap=60;
 function applyQuality(){const high=quality==='high';fpsCap=high?60:30;const size=high?2048:1024;if(sun.shadow.mapSize.x!==size){sun.shadow.mapSize.set(size,size);sun.shadow.map?.dispose();sun.shadow.map=null;}if(renderer.isWebGLRenderer){rt?.dispose();rt=new T.WebGLRenderTarget(1,1,{samples:high?4:0,type:T.HalfFloatType});post.uniforms.map.value=rt.texture;}for(const d of dust.slice(high?36:18)){d.life=0;d.m.visible=false;}resize();for(const input of document.querySelectorAll('input[name=quality]'))input.checked=input.value===quality;}
 var menuDirty=true;function resize(){menuDirty=true;const w=innerWidth,h=innerHeight;const ratio=quality==='high'?Math.min(devicePixelRatio,1.5,Math.sqrt(2.4e6/(w*h))):Math.min(1,1280/w,900/h);renderer.setPixelRatio(ratio);renderer.setSize(w,h);if(rt){rt.setSize(Math.round(w*ratio),Math.round(h*ratio));post.uniforms.res.value.set(rt.width,rt.height);}camera.aspect=w/h;camera.updateProjectionMatrix();}addEventListener('resize',resize);
 
-let audio,engine,gain,filter,wind,windGain,windPan,rumble,howls=[],radioBus,hiss,hissGain,musicGain;
-function audioStart(){if(!audio){audio=new(window.AudioContext||window.webkitAudioContext)();engine=audio.createOscillator();engine.type='sawtooth';gain=audio.createGain();filter=audio.createBiquadFilter();filter.type='lowpass';filter.frequency.value=220;engine.connect(filter);filter.connect(gain);gain.connect(audio.destination);engine.start();
+let audio,engine,engine2,gain,filter,wind,windGain,windPan,rumble,howls=[],radioBus,hiss,hissGain,musicGain;
+function audioStart(){if(!audio){audio=new(window.AudioContext||window.webkitAudioContext)();// Engine: sawtooth plus a square an octave down, driven through a soft clipper for growl; the filter opens with revs.
+ engine=audio.createOscillator();engine.type='sawtooth';engine2=audio.createOscillator();engine2.type='square';engine2.detune.value=-1190;const sub=audio.createGain();sub.gain.value=.6;
+ const shaper=audio.createWaveShaper(),curve=new Float32Array(1024);for(let i=0;i<1024;i++){const x=i/511.5-1;curve[i]=Math.tanh(x*2.6);}shaper.curve=curve;
+ gain=audio.createGain();gain.gain.value=0;filter=audio.createBiquadFilter();filter.type='lowpass';filter.frequency.value=600;filter.Q.value=2.2;
+ engine.connect(shaper);engine2.connect(sub);sub.connect(shaper);shaper.connect(filter);filter.connect(gain);gain.connect(audio.destination);engine.start();engine2.start();
  // Storm wind: a low rumble plus two whistling bands, placed behind the listener and swirling around.
  wind=audio.createBufferSource();const b=audio.createBuffer(1,audio.sampleRate*3,audio.sampleRate),s=b.getChannelData(0);for(let i=0;i<s.length;i++)s[i]=Math.random()*2-1;wind.buffer=b;wind.loop=true;
  windGain=audio.createGain();windGain.gain.value=0;windPan=audio.createPanner();Object.assign(windPan,{panningModel:'HRTF',distanceModel:'inverse',refDistance:60,rolloffFactor:.2});windPan.positionZ.value=8;
@@ -247,17 +253,20 @@ function control(){let v=touch+(keys.has('ArrowRight')||keys.has('KeyD')?1:0)-(k
 // Caravan partners hold a lane, refuel when low and keep clear of other pickups.
 // With ?debug autopilot the player's pickup plays the rear guard: stuck partners first, then loose cargo.
 const LANE=[0,-6,6,0];
-function ai(c){let target=roadCenter(c.z-34)+LANE[c.id]+Math.sin(time*.35+c.id*2)*2.5,best=Infinity;
- if(c.fuel<c.spec.capacity*.8)for(const f of fuels){const dz=c.z-f.z;if(f.active&&f.kind==='fuel'&&dz>4&&dz<70){const score=dz+Math.abs(f.x-c.x)*2;if(score<best){best=score;target=f.x;}}}
- if(c.id===0){best=Infinity;for(const o of cars){const dz=c.z-o.z;if(o.stuck&&!o.dead&&dz>0&&dz<70&&dz<best){best=dz;target=o.x;}}if(best===Infinity&&c.cargo.length<CARGO_SLOTS)for(const it of loose){const dz=c.z-it.z;if(it.active&&dz>3&&dz<45){const score=dz*.6+Math.abs(it.x-c.x)*1.6;if(score<best){best=score;target=it.x;}}}}
- for(const o of cars){if(o===c||o.dead||o.finished||(c.id===0&&o.stuck))continue;const dz=c.z-o.z,dx=o.x-c.x;if(dz>-3&&dz<14&&Math.abs(dx)<4.5){target=o.x+(dx>0?-6:6);break;}}
- for(const p of pits){const dz=c.z-p.z;if(p.kind!=='dune'&&dz>0&&dz<24&&Math.abs(target-p.x)<p.r+2.5){target=p.x+(c.x>p.x?1:-1)*(p.r+4);break;}}
- target=clamp(target,roadCenter(c.z-25)-14,roadCenter(c.z-25)+14);const desired=clamp((target-c.x)*.1,-.65,.65);return clamp((desired-c.yaw)*3,-1,1);}
+// Targets are lateral offsets from the road centre at their own distance, so they stay valid on bends.
+function ai(c){const lat=o=>o.x-roadCenter(o.z),my=lat(c);let off=LANE[c.id]+Math.sin(time*.35+c.id*2)*2.5,best=Infinity;
+ if(c.fuel<c.spec.capacity*.8)for(const f of fuels){const dz=c.z-f.z;if(f.active&&f.kind==='fuel'&&dz>4&&dz<70){const score=dz+Math.abs(lat(f)-my)*2;if(score<best){best=score;off=lat(f);}}}
+ if(c.id===0){best=Infinity;for(const o of cars){const dz=c.z-o.z;if(o.stuck&&!o.dead&&dz>0&&dz<70&&dz<best){best=dz;off=lat(o);}}if(best===Infinity&&c.cargo.length<CARGO_SLOTS)for(const it of loose){const dz=c.z-it.z;if(it.active&&dz>3&&dz<45){const score=dz*.6+Math.abs(lat(it)-my)*1.6;if(score<best){best=score;off=lat(it);}}}}
+ for(const o of cars){if(o===c||o.dead||o.finished||(c.id===0&&o.stuck))continue;const dz=c.z-o.z,dx=lat(o)-my;if(dz>-3&&dz<14&&Math.abs(dx)<4.5){off=lat(o)+(dx>0?-6:6);break;}}
+ for(const p of pits){const dz=c.z-p.z,po=lat(p);if(p.kind!=='dune'&&dz>0&&dz<24&&Math.abs(off-po)<p.r+2.5){off=po+(my>po?1:-1)*(p.r+4);break;}}
+ off=clamp(off,-12,12);
+ // Feed-forward the road heading, then correct the lateral error.
+ const s=(roadCenter(c.z-9)-roadCenter(c.z-7))/2,err=roadCenter(c.z)+off-c.x,desired=clamp(Math.atan(s)+clamp(err*.09,-.5,.5),-1.05,1.05);return clamp((desired-c.yaw)*2.4-c.yawRate*1.1,-1,1);}
 function lose(c,count){if(count<=0||c.cooldown>0||!c.cargo.length)return;c.cooldown=.6;const dropped=dropCargo(c,count,loose);for(const it of dropped)it.entry=looseMesh(it.kind);c.loadFactor=loadFactor(c);if(c.id===0&&!watching)say(dropped.length>1?'Выпало '+dropped.length+' места груза':'Груз выпал из кузова');}
 function freeLoose(it){if(it.entry){it.entry.used=false;it.entry.m.visible=false;it.entry=null;}}
 // Trouble ahead for the rear guard: a partner bogs down, or a load works loose.
 function incidents(dt){if(watching||cars[0].dead)return;nextStuck-=dt;nextDrop-=dt;
- if(nextStuck<=0){const c=incidentCandidate(cars,cars[0]);if(c){stickCar(c);say(names[c.id]+' застрял, толкни его');toast=3;nextStuck=10+Math.random()*6;}else nextStuck=1.5;}
+ if(nextStuck<=0){const c=incidentCandidate(cars,cars[0]);if(c){stickCar(c);say(names[c.id]+' застрял, толкни его');toast=3;nextStuck=14+Math.random()*7;}else nextStuck=1.5;}
  if(nextDrop<=0){const c=incidentCandidate(cars.filter(o=>o.cargo.length>3),cars[0]);if(c){c.cooldown=0;lose(c,1);say(names[c.id]+' потерял груз, подбери');nextDrop=10+Math.random()*5;}else nextDrop=1.5;}}
 function tick(dt){if(time===0)say('Ты замыкаешь караван, буря позади');time+=dt;for(const c of cars){c.prevX=c.x;c.prevZ=c.z;c.cooldown=Math.max(0,c.cooldown-dt);}const previous=cars.map(c=>c.z);for(const c of cars){const own=!c.id&&!autopilot;step(c,dt,pits,own?control():ai(c),own?throttleInput():0);holdStuck(c,dt);}
  for(let i=0;i<4;i++)for(let j=i+1;j<4;j++){const a=cars[i],b=cars[j],strength=Math.hypot(a.vx-b.vx,a.vz-b.vz);
@@ -269,7 +278,7 @@ function tick(dt){if(time===0)say('Ты замыкаешь караван, бу�
  const lostBefore=cars.map(c=>c.dead);stepStorm(storm,cars,dt,time);cars.forEach((c,i)=>{if(c.dead&&!lostBefore[i]&&i&&!watching){say('Буря забрала '+names[i]);}});
  incidents(dt);stepLoose(loose,storm,dt);for(const it of loose)if(!it.active)freeLoose(it);
  finishCount=finishCrossings(cars,previous,time,dt,finishCount);for(const c of cars)deliver(c);
- for(const c of cars){for(const f of fuels)if(pickup(c,f)){f.g.visible=false;if(c.id===0&&!watching){say(f.kind==='nitro'?'Нитро на 4 секунды':'+5 л');f.kind==='nitro'?hissSound():loadSound();}}
+ for(const c of cars){for(const f of fuels)if(pickup(c,f)){f.g.visible=false;if(c.id===0&&!watching){f.kind==='nitro'?hissSound():loadSound();}}
   for(const it of loose)if(grabCargo(c,it)){c.loadFactor=loadFactor(c);freeLoose(it);if(c.id===0&&!watching){say(it.owner?'Груз '+names[it.owner]+' у тебя':'Груз подобран');loadSound();}}}
  loose=loose.filter(it=>it.active);
  for(let i=0;i<4;i++)syncCargo(models[i],cars[i]);
@@ -278,7 +287,7 @@ function tick(dt){if(time===0)say('Ты замыкаешь караван, бу�
  if(!watching&&(cars[0].dead||cars[0].finished)){watching=true;clearSteering();$('status').textContent=cars[0].finished?'Ты в посёлке, ждём остальных':'Тебя накрыла буря, караван ещё в пути';toast=4;}
 }
 function focusCar(){if(!watching)return cars[0];let f=null;for(const c of cars)if(!c.dead&&!c.finished&&(!f||c.z>f.z))f=c;return f||cars[0];}
-if(location.search.includes('debug'))window.__ns={T,scene,camera,get cars(){return cars},get models(){return models},get storm(){return storm},renderer,post,set view(v){debugView=v},press(code,on=true){on?keys.add(code):keys.delete(code)},sim(seconds,auto=true){autopilot=auto;for(let t=0;t<seconds*60&&playing;t++)tick(1/60);return {time:+time.toFixed(1),storm:+storm.z.toFixed(0),cars:cars.map(c=>({z:+c.z.toFixed(0),cargo:c.cargo.length,dead:c.dead,fin:c.finished,del:c.delivered,fuel:+c.fuel.toFixed(0),lost:c.lostCargo,stuck:c.stuck,resc:c.rescues,catch:c.catches})),loose:loose.length,swallowed:storm.swallowed}}};let autopilot=false;let debugView=null;
+if(location.search.includes('debug'))window.__ns={rc:roadCenter,T,scene,camera,get cars(){return cars},get models(){return models},get storm(){return storm},renderer,post,set view(v){debugView=v},press(code,on=true){on?keys.add(code):keys.delete(code)},sim(seconds,auto=true){autopilot=auto;for(let t=0;t<seconds*60&&playing;t++)tick(1/60);return {time:+time.toFixed(1),storm:+storm.z.toFixed(0),cars:cars.map(c=>({z:+c.z.toFixed(0),cargo:c.cargo.length,dead:c.dead,fin:c.finished,del:c.delivered,fuel:+c.fuel.toFixed(0),lost:c.lostCargo,stuck:c.stuck,resc:c.rescues,catch:c.catches})),loose:loose.length,swallowed:storm.swallowed}}};let autopilot=false;let debugView=null;
 const helpTags=[null,1,2,3].map(i=>{if(!i)return null;const d=document.createElement('div');d.className='helptag';d.hidden=true;d.textContent='Толкни';$('hud').appendChild(d);return d;});
 let last=performance.now(),lastHud=0,frame=0;applyQuality();reset();camera.position.set(24,35,36);const look=new T.Vector3(),camTarget=new T.Vector3(),fogBase=new T.Color(SKY),fogStorm=new T.Color('#9f774c');
 function render(now){requestAnimationFrame(render);if(document.hidden||paused||ended||(!playing&&!menuDirty)){last=now;return;}const interval=1000/(playing?fpsCap:10);if(now-last<interval-1)return;let dt=Math.min(.1,(now-last)/1000);last=now;frame++;
@@ -287,8 +296,8 @@ function render(now){requestAnimationFrame(render);if(document.hidden||paused||e
  if(active){camTarget.set(c.x*.8+roadCenter(viewZ-25)*.2,narrow?50:40,viewZ+44);if(camera.position.distanceTo(camTarget)>60)camera.position.copy(camTarget);else camera.position.lerp(camTarget,1-Math.exp(-dt*(watching?2.5:4)));}else camera.position.set(26+Math.sin(now*.00006)*4,30,29);
  look.set(active?(c.x*.8+roadCenter(viewZ-25)*.2):3,0,viewZ-(narrow?8:5));camera.lookAt(look);
  sun.position.set(c.x-40,26,viewZ+22);sun.target.position.set(c.x,0,viewZ-14);fill.position.set(c.x+30,25,viewZ-40);fill.target.position.set(c.x,0,viewZ);
- for(const g of grounds){while(g.position.z>viewZ+220)g.position.z-=720;while(g.position.z<viewZ-500)g.position.z+=720;}
- for(const p of props){p.visible=p.position.z>viewZ-150&&p.position.z<viewZ+65;if(p.position.z>viewZ+80)p.position.z=viewZ-550-Math.random()*80;if(p.position.z<viewZ-700)p.position.z=viewZ+70;p.position.x=roadCenter(p.position.z)+p.userData.roadOffset;}
+ for(const g of grounds){let moved=false;while(g.position.z>viewZ+220){g.position.z-=720;moved=true;}while(g.position.z<viewZ-500){g.position.z+=720;moved=true;}if(moved){g.position.x=roadCenter(g.position.z);shapeGround(g);}}
+ for(const p of props){p.visible=p.position.z>viewZ-150&&p.position.z<viewZ+65;if(p.position.z>viewZ+80)p.position.z=viewZ-550-Math.random()*80;if(p.position.z<viewZ-700)p.position.z=viewZ+70;p.position.x=roadside(p.position.z,p.userData.roadOffset);}
  for(const g of distant)g.visible=Math.abs(g.position.z-viewZ)<120;oasis.visible=Math.abs(oasis.position.z-viewZ)<170;for(const p of pits)p.g.visible=Math.abs(p.z-viewZ)<150;for(const f of fuels)f.g.visible=f.active&&Math.abs(f.z-viewZ)<150;
  // The storm wall follows the road and churns; it tints the frame as it closes in.
  const sz=active?storm.z:60;stormWall.position.set(roadCenter(sz),0,sz);stormWall.visible=sz-viewZ<90;const outside=active?clamp((storm.z-c.z+2)/10,0,1):1;for(let i=0;i<wallLayers.length;i++){const w=wallLayers[i];w.material.map.offset.x=now*.00002*(i%2?1:-1.4)+i*.17;w.material.opacity=w.userData.base*outside;w.visible=outside>.01;}
@@ -307,7 +316,7 @@ function render(now){requestAnimationFrame(render);if(document.hidden||paused||e
   
   $('boost').hidden=me.boost<=0||watching;$('boost').textContent='Нитро '+Math.ceil(me.boost)+' с';updateRaceHud();const cover=me.cover||0;$('sink').style.display=!watching&&(me.sink>.15||cover>.02)?'block':'none';$('sinkTitle').textContent=cover>.02?'Выбирайся из бури':'Не останавливайся';$('sinkNote').textContent=cover>.02?'Буря затягивает':'Песок затягивает';$('sinkBar').style.width=(Math.max(me.sink/3.8,cover)*100)+'%';}
  if(toast>0&&!paused){toast-=dt;if(toast<=0)$('status').textContent='';}
- if(gain){const on=playing&&!paused&&!muted;gain.gain.setTargetAtTime(on&&!watching?.04*volume:0,audio.currentTime,.1);engine.frequency.setTargetAtTime(35+Math.hypot(me.vx,me.vz)*2.5,audio.currentTime,.1);{const gap=storm.z-me.z,prox=watching?.25:clamp(1-(gap-6)/55,0,1)*.85+(me.cover||0)*.15+(me.stormDepth>0?.15:0);windUpdate(on,Math.min(1,prox),now/1000);crackleUpdate(on,Math.min(1,prox),dt);radioMusic(on);}}
+ if(gain){const on=playing&&!paused&&!muted;{const sp=Math.hypot(me.vx,me.vz),gear=(sp%9)/9,rpm=58+sp*2.4+gear*26+(throttleInput()>0?14:0),at=audio.currentTime;gain.gain.setTargetAtTime(on&&!watching&&!me.dead&&!me.finished?(.09+Math.min(1,sp/25)*.05)*volume:0,at,.1);engine.frequency.setTargetAtTime(rpm,at,.08);engine2.frequency.setTargetAtTime(rpm,at,.08);filter.frequency.setTargetAtTime(500+sp*38+(throttleInput()>0?400:0),at,.1);}{const gap=storm.z-me.z,prox=watching?.25:clamp(1-(gap-6)/55,0,1)*.85+(me.cover||0)*.15+(me.stormDepth>0?.15:0);windUpdate(on,Math.min(1,prox),now/1000);crackleUpdate(on,Math.min(1,prox),dt);radioMusic(on);}}
  menuDirty=false;renderer.shadowMap.autoUpdate=quality==='high'||frame%2===0||!playing;
  if(!renderer.isWebGLRenderer){renderer.setRenderTarget(null);renderer.render(scene,camera);}else{renderer.setRenderTarget(rt);renderer.render(scene,camera);renderer.setRenderTarget(null);renderer.render(postScene,postCam);}}
 $('start').disabled=false;$('start').textContent='В путь';requestAnimationFrame(render);
