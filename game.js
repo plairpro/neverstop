@@ -255,7 +255,7 @@ function control(){let v=touch+(keys.has('ArrowRight')||keys.has('KeyD')?1:0)-(k
 const LANE=[0,-6,6,0];
 // Targets are lateral offsets from the road centre at their own distance, so they stay valid on bends.
 function ai(c){const lat=o=>o.x-roadCenter(o.z),my=lat(c);let off=LANE[c.id]+Math.sin(time*.35+c.id*2)*2.5,best=Infinity;
- if(c.fuel<c.spec.capacity*.8)for(const f of fuels){const dz=c.z-f.z;if(f.active&&f.kind==='fuel'&&dz>4&&dz<70){const score=dz+Math.abs(lat(f)-my)*2;if(score<best){best=score;off=lat(f);}}}
+ if(c.id===0&&c.fuel<c.spec.capacity*.8)for(const f of fuels){const dz=c.z-f.z;if(f.active&&f.kind==='fuel'&&dz>4&&dz<70){const score=dz+Math.abs(lat(f)-my)*2;if(score<best){best=score;off=lat(f);}}}
  if(c.id===0){best=Infinity;for(const o of cars){const dz=c.z-o.z;if(o.stuck&&!o.dead&&dz>0&&dz<70&&dz<best){best=dz;off=lat(o);}}if(best===Infinity&&c.cargo.length<CARGO_SLOTS)for(const it of loose){const dz=c.z-it.z;if(it.active&&dz>3&&dz<45){const score=dz*.6+Math.abs(lat(it)-my)*1.6;if(score<best){best=score;off=lat(it);}}}}
  for(const o of cars){if(o===c||o.dead||o.finished||(c.id===0&&o.stuck))continue;const dz=c.z-o.z,dx=lat(o)-my;if(dz>-3&&dz<14&&Math.abs(dx)<4.5){off=lat(o)+(dx>0?-6:6);break;}}
  for(const p of pits){const dz=c.z-p.z,po=lat(p);if(p.kind!=='dune'&&dz>0&&dz<24&&Math.abs(off-po)<p.r+2.5){off=po+(my>po?1:-1)*(p.r+4);break;}}
@@ -268,7 +268,7 @@ function freeLoose(it){if(it.entry){it.entry.used=false;it.entry.m.visible=false
 function incidents(dt){if(watching||cars[0].dead)return;nextStuck-=dt;nextDrop-=dt;
  if(nextStuck<=0){const c=incidentCandidate(cars,cars[0]);if(c){stickCar(c);say(names[c.id]+' застрял, толкни его');toast=3;nextStuck=14+Math.random()*7;}else nextStuck=1.5;}
  if(nextDrop<=0){const c=incidentCandidate(cars.filter(o=>o.cargo.length>3),cars[0]);if(c){c.cooldown=0;lose(c,1);say(names[c.id]+' потерял груз, подбери');nextDrop=10+Math.random()*5;}else nextDrop=1.5;}}
-function tick(dt){if(time===0)say('Ты замыкаешь караван, буря позади');time+=dt;for(const c of cars){c.prevX=c.x;c.prevZ=c.z;c.cooldown=Math.max(0,c.cooldown-dt);}const previous=cars.map(c=>c.z);for(const c of cars){const own=!c.id&&!autopilot;step(c,dt,pits,own?control():ai(c),own?throttleInput():0);holdStuck(c,dt);}
+function tick(dt){if(time===0)say('Ты замыкаешь караван, буря позади');time+=dt;for(const c of cars){c.prevX=c.x;c.prevZ=c.z;c.cooldown=Math.max(0,c.cooldown-dt);}const previous=cars.map(c=>c.z);for(const c of cars){if(c.id)c.fuel=c.spec.capacity;const own=!c.id&&!autopilot;step(c,dt,pits,own?control():ai(c),own?throttleInput():0);holdStuck(c,dt);}
  for(let i=0;i<4;i++)for(let j=i+1;j<4;j++){const a=cars[i],b=cars[j],strength=Math.hypot(a.vx-b.vx,a.vz-b.vz);
   if(Math.hypot(a.x-b.x,a.z-b.z)<2.95&&(a.stuck||b.stuck)){const helper=a.stuck?b:a,stuck=a.stuck?a:b;if(tryRescue(helper,stuck,strength)){collide(a,b);stuck.vz=Math.min(stuck.vz,-11);if(helper.id===0){pushSound();say(names[stuck.id]+' снова в пути');}continue;}}
   if(collide(a,b)){impactSound(strength,Math.hypot(a.x-cars[0].x,a.z-cars[0].z));const n=a.id&&b.id?0:cargoForImpact(strength);lose(a,n);lose(b,n);}}
@@ -278,7 +278,7 @@ function tick(dt){if(time===0)say('Ты замыкаешь караван, бу�
  const lostBefore=cars.map(c=>c.dead);stepStorm(storm,cars,dt,time);cars.forEach((c,i)=>{if(c.dead&&!lostBefore[i]&&i&&!watching){say('Буря забрала '+names[i]);}});
  incidents(dt);stepLoose(loose,storm,dt);for(const it of loose)if(!it.active)freeLoose(it);
  finishCount=finishCrossings(cars,previous,time,dt,finishCount);for(const c of cars)deliver(c);
- for(const c of cars){for(const f of fuels)if(pickup(c,f)){f.g.visible=false;if(c.id===0&&!watching){f.kind==='nitro'?hissSound():loadSound();}}
+ for(const c of cars){if(!c.id)for(const f of fuels)if(pickup(c,f)){f.g.visible=false;if(c.id===0&&!watching){f.kind==='nitro'?hissSound():loadSound();}}
   for(const it of loose)if(grabCargo(c,it)){c.loadFactor=loadFactor(c);freeLoose(it);if(c.id===0&&!watching){say(it.owner?'Груз '+names[it.owner]+' у тебя':'Груз подобран');loadSound();}}}
  loose=loose.filter(it=>it.active);
  for(let i=0;i<4;i++)syncCargo(models[i],cars[i]);
