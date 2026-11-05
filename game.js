@@ -161,15 +161,29 @@ let fpsCap=60;
 function applyQuality(){const high=quality==='high';fpsCap=high?60:30;const size=high?2048:1024;if(sun.shadow.mapSize.x!==size){sun.shadow.mapSize.set(size,size);sun.shadow.map?.dispose();sun.shadow.map=null;}if(renderer.isWebGLRenderer){rt?.dispose();rt=new T.WebGLRenderTarget(1,1,{samples:high?4:0,type:T.HalfFloatType});post.uniforms.map.value=rt.texture;}for(const d of dust.slice(high?36:18)){d.life=0;d.m.visible=false;}resize();for(const input of document.querySelectorAll('input[name=quality]'))input.checked=input.value===quality;}
 var menuDirty=true;function resize(){menuDirty=true;const w=innerWidth,h=innerHeight;const ratio=quality==='high'?Math.min(devicePixelRatio,1.5,Math.sqrt(2.4e6/(w*h))):Math.min(1,1280/w,900/h);renderer.setPixelRatio(ratio);renderer.setSize(w,h);if(rt){rt.setSize(Math.round(w*ratio),Math.round(h*ratio));post.uniforms.res.value.set(rt.width,rt.height);}camera.aspect=w/h;camera.updateProjectionMatrix();}addEventListener('resize',resize);
 
-let audio,engine,gain,filter,wind,windGain,windPan,rumble,howls=[];
+let audio,engine,gain,filter,wind,windGain,windPan,rumble,howls=[],radioBus,hiss,hissGain,musicGain;
 function audioStart(){if(!audio){audio=new(window.AudioContext||window.webkitAudioContext)();engine=audio.createOscillator();engine.type='sawtooth';gain=audio.createGain();filter=audio.createBiquadFilter();filter.type='lowpass';filter.frequency.value=220;engine.connect(filter);filter.connect(gain);gain.connect(audio.destination);engine.start();
  // Storm wind: a low rumble plus two whistling bands, placed behind the listener and swirling around.
  wind=audio.createBufferSource();const b=audio.createBuffer(1,audio.sampleRate*3,audio.sampleRate),s=b.getChannelData(0);for(let i=0;i<s.length;i++)s[i]=Math.random()*2-1;wind.buffer=b;wind.loop=true;
  windGain=audio.createGain();windGain.gain.value=0;windPan=audio.createPanner();Object.assign(windPan,{panningModel:'HRTF',distanceModel:'inverse',refDistance:60,rolloffFactor:.2});windPan.positionZ.value=8;
  rumble=audio.createBiquadFilter();rumble.type='lowpass';rumble.frequency.value=160;const rg=audio.createGain();rg.gain.value=1.6;wind.connect(rumble);rumble.connect(rg);rg.connect(windGain);
  for(const [f,q,lvl] of [[380,9,.9],[640,14,.55]]){const bp=audio.createBiquadFilter();bp.type='bandpass';bp.frequency.value=f;bp.Q.value=q;const hg=audio.createGain();hg.gain.value=lvl;wind.connect(bp);bp.connect(hg);hg.connect(windGain);howls.push({bp,hg,f,lvl});}
- windGain.connect(windPan);windPan.connect(audio.destination);wind.start();}audio.resume();}
+ windGain.connect(windPan);windPan.connect(audio.destination);wind.start();
+ // Cab radio: a narrow speaker band. Static hiss and Geiger-like crackle grow as the storm nears; music will play through it too.
+ radioBus=audio.createGain();radioBus.gain.value=0;const hp=audio.createBiquadFilter(),lp=audio.createBiquadFilter(),body=audio.createBiquadFilter();hp.type='highpass';hp.frequency.value=320;lp.type='lowpass';lp.frequency.value=3400;body.type='peaking';body.frequency.value=1500;body.gain.value=5;body.Q.value=.8;
+ radioBus.connect(hp);hp.connect(body);body.connect(lp);lp.connect(audio.destination);
+ hiss=audio.createBufferSource();hiss.buffer=b;hiss.loop=true;hissGain=audio.createGain();hissGain.gain.value=0;const hf=audio.createBiquadFilter();hf.type='bandpass';hf.frequency.value=2200;hf.Q.value=.6;hiss.connect(hf);hf.connect(hissGain);hissGain.connect(radioBus);hiss.start();
+ musicGain=audio.createGain();musicGain.gain.value=.5;musicGain.connect(radioBus);}audio.resume();}
 // Louder, higher and closer behind you as the storm approaches; gusts and a slow swirl keep it alive.
+// Radio static: clicks fall at random like a Geiger counter, a few per second far away, a dense rattle up close.
+function crackleUpdate(on,prox,dt){if(!radioBus)return;const at=audio.currentTime;radioBus.gain.setTargetAtTime(on?volume:0,at,.1);hissGain.gain.setTargetAtTime(on?.004+prox**2*.05:0,at,.25);
+ if(!on)return;const rate=.6+prox**2.2*38;let n=0;const expect=rate*dt;for(let k=0;k<6;k++)if(Math.random()<expect/6)n++;
+ for(let k=0;k<n;k++){const t=at+.01+Math.random()*dt,s=noiseSource(),f=audio.createBiquadFilter(),g=audio.createGain(),big=Math.random()<.12+prox*.15,len=big?.02+Math.random()*.03:.002+Math.random()*.006;
+  f.type='bandpass';f.frequency.value=1200+Math.random()*2600;f.Q.value=big?1.2:2.5;g.gain.setValueAtTime((big?.22:.12)*(.5+Math.random()*.5)*(.6+prox*.6),t);g.gain.exponentialRampToValueAtTime(.0001,t+len);
+  s.connect(f);f.connect(g);g.connect(radioBus);s.start(t,Math.random()*.9);s.stop(t+len+.01);}}
+// Music for the cab radio goes here: file names relative to the game, played quietly through the same speaker band.
+const RADIO_TRACKS=[];let radioTrack=null;
+function radioMusic(on){if(!RADIO_TRACKS.length||!musicGain)return;if(!radioTrack){radioTrack=new Audio(RADIO_TRACKS[0]);radioTrack.loop=true;radioTrack.crossOrigin='anonymous';audio.createMediaElementSource(radioTrack).connect(musicGain);}if(on&&radioTrack.paused)radioTrack.play().catch(()=>{});else if(!on&&!radioTrack.paused)radioTrack.pause();}
 function windUpdate(on,prox,t){const at=audio.currentTime,gust=.7+.3*Math.sin(t*2.3)*Math.sin(t*.61)+.1*Math.sin(t*5.7);windGain.gain.setTargetAtTime(on?(.012+prox**1.6*.3)*gust*volume:0,at,.15);
  const r=2+prox*2,swirl=t*(.6+prox*.9);windPan.positionX.setTargetAtTime(Math.sin(swirl)*r,at,.1);windPan.positionZ.setTargetAtTime(1.5+(1-prox)*14+Math.cos(swirl*.7)*1.2,at,.1);
  rumble.frequency.setTargetAtTime(120+prox*160,at,.2);for(const [i,h] of howls.entries()){h.bp.frequency.setTargetAtTime(h.f*(.85+prox*.45)+Math.sin(t*(.9+i*.6)+i)*90+Math.sin(t*2.7+i*2)*35,at,.08);h.hg.gain.setTargetAtTime(h.lvl*(.3+prox*.9)*(.6+.4*Math.sin(t*1.3+i*1.7)),at,.1);}}
@@ -293,7 +307,7 @@ function render(now){requestAnimationFrame(render);if(document.hidden||paused||e
   
   $('boost').hidden=me.boost<=0||watching;$('boost').textContent='Нитро '+Math.ceil(me.boost)+' с';updateRaceHud();const cover=me.cover||0;$('sink').style.display=!watching&&(me.sink>.15||cover>.02)?'block':'none';$('sinkTitle').textContent=cover>.02?'Выбирайся из бури':'Не останавливайся';$('sinkNote').textContent=cover>.02?'Буря затягивает':'Песок затягивает';$('sinkBar').style.width=(Math.max(me.sink/3.8,cover)*100)+'%';}
  if(toast>0&&!paused){toast-=dt;if(toast<=0)$('status').textContent='';}
- if(gain){const on=playing&&!paused&&!muted;gain.gain.setTargetAtTime(on&&!watching?.04*volume:0,audio.currentTime,.1);engine.frequency.setTargetAtTime(35+Math.hypot(me.vx,me.vz)*2.5,audio.currentTime,.1);{const gap=storm.z-me.z,prox=watching?.25:clamp(1-(gap-6)/55,0,1)*.85+(me.cover||0)*.15+(me.stormDepth>0?.15:0);windUpdate(on,Math.min(1,prox),now/1000);}}
+ if(gain){const on=playing&&!paused&&!muted;gain.gain.setTargetAtTime(on&&!watching?.04*volume:0,audio.currentTime,.1);engine.frequency.setTargetAtTime(35+Math.hypot(me.vx,me.vz)*2.5,audio.currentTime,.1);{const gap=storm.z-me.z,prox=watching?.25:clamp(1-(gap-6)/55,0,1)*.85+(me.cover||0)*.15+(me.stormDepth>0?.15:0);windUpdate(on,Math.min(1,prox),now/1000);crackleUpdate(on,Math.min(1,prox),dt);radioMusic(on);}}
  menuDirty=false;renderer.shadowMap.autoUpdate=quality==='high'||frame%2===0||!playing;
  if(!renderer.isWebGLRenderer){renderer.setRenderTarget(null);renderer.render(scene,camera);}else{renderer.setRenderTarget(rt);renderer.render(scene,camera);renderer.setRenderTarget(null);renderer.render(postScene,postCam);}}
 $('start').disabled=false;$('start').textContent='В путь';requestAnimationFrame(render);
